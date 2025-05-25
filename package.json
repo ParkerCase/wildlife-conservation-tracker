@@ -1,0 +1,31 @@
+{
+  "name": "wildlife-trade-detector",
+  "version": "1.0.0",
+  "description": "AI-powered wildlife trade detection system",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "scan": "node -e \"require('./index.js').scanForWildlifeProducts()\"",
+    "setup": "npm install && mkdir -p public"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.20.9",
+    "crypto": "^1.0.1",
+    "express": "^4.21.2",
+    "puppeteer": "^21.11.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "wildlife",
+    "conservation",
+    "ai",
+    "detection",
+    "illegal-trade"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
