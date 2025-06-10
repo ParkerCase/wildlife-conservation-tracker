@@ -44,9 +44,12 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Wifi,
+  Panda,
   Server,
   Lock,
   ShieldCheck,
+  Leaf,
+  Turtle,
 } from "lucide-react";
 
 // Enhanced API Service
@@ -98,16 +101,27 @@ class WildGuardAPI {
 // Enhanced Professional Sidebar
 const ProfessionalSidebar = ({ isOpen, setIsOpen }) => {
   const location = useLocation();
+  const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth >= 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsLargeScreen(window.innerWidth >= 1024);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const navItems = [
     {
       path: "/",
-      icon: LayoutDashboard,
+      icon: Activity, // Changed from LayoutDashboard
       label: "Live Operations",
       gradient: "from-blue-500 to-blue-600",
       bgColor: "bg-blue-500/10",
       borderColor: "border-blue-500/20",
     },
+    ,
     {
       path: "/analytics",
       icon: BarChart3,
@@ -155,35 +169,36 @@ const ProfessionalSidebar = ({ isOpen, setIsOpen }) => {
         />
       )}
 
-      {/* Sidebar */}
       <motion.div
         initial={false}
-        animate={{ x: isOpen ? 0 : "-100%" }}
+        animate={{
+          x: isLargeScreen ? 0 : isOpen ? 0 : "-100%",
+        }}
         transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-        className="fixed left-0 top-0 h-full w-80 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white z-50 lg:translate-x-0 lg:static lg:z-auto border-r border-slate-700/50"
+        className="fixed left-0 top-0 h-100 w-64 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white z-50 lg:translate-x-0 lg:static lg:z-auto border-r border-slate-700/50"
         style={{
           background:
             "linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95))",
         }}
       >
         {/* Enhanced Header */}
-        <div className="relative p-8 border-b border-slate-700/50">
+        <div className="relative p-6 border-b border-slate-700/50">
           {/* Background Pattern */}
           <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5"></div>
 
           <div className="relative flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <div className="relative">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
-                  <Shield size={28} className="text-white" />
+                <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
+                  <Leaf size={24} className="text-white" />
                 </div>
-                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-slate-900 animate-pulse"></div>
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border border-slate-900 animate-pulse"></div>
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
-                  WildGuard AI
+                <h1 className="text-lg font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                  The Conservatron 12000
                 </h1>
-                <p className="text-sm text-slate-400 font-medium">
+                <p className="text-xs text-slate-400 font-medium">
                   Conservation Intelligence Platform
                 </p>
               </div>
@@ -192,8 +207,22 @@ const ProfessionalSidebar = ({ isOpen, setIsOpen }) => {
               onClick={() => setIsOpen(false)}
               className="lg:hidden p-2 hover:bg-slate-700/50 rounded-xl transition-colors"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
+          </div>
+
+          {/* System Status */}
+          <div className="mt-4 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="relative">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <div className="absolute inset-0 w-2 h-2 bg-green-400 rounded-full animate-ping opacity-30"></div>
+              </div>
+              <span className="text-sm font-semibold text-green-400">
+                System Active
+              </span>
+            </div>
+            <Wifi size={16} className="text-green-400" />
           </div>
         </div>
 
@@ -269,61 +298,6 @@ const ProfessionalSidebar = ({ isOpen, setIsOpen }) => {
             );
           })}
         </nav>
-
-        {/* Enhanced Status Panel */}
-        <div className="absolute bottom-6 left-6 right-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-gradient-to-br from-slate-800/80 to-slate-700/80 rounded-2xl p-6 border border-slate-600/30"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <div className="w-4 h-4 bg-green-400 rounded-full animate-pulse shadow-lg shadow-green-400/30"></div>
-                  <div className="absolute inset-0 w-4 h-4 bg-green-400 rounded-full animate-ping opacity-30"></div>
-                </div>
-                <span className="text-lg font-bold text-green-400">
-                  System Active
-                </span>
-              </div>
-              <Wifi size={20} className="text-green-400" />
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Server size={14} className="text-slate-400" />
-                  <span className="text-sm text-slate-400">Platforms</span>
-                </div>
-                <span className="text-sm font-bold text-white">4 Active</span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Activity size={14} className="text-slate-400" />
-                  <span className="text-sm text-slate-400">Uptime</span>
-                </div>
-                <span className="text-sm font-bold text-green-400">99.9%</span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Lock size={14} className="text-slate-400" />
-                  <span className="text-sm text-slate-400">Port</span>
-                </div>
-                <span className="text-sm font-bold text-white">5001</span>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-slate-600/30">
-              <div className="text-xs text-slate-500 text-center">
-                Last scan: {new Date().toLocaleTimeString()}
-              </div>
-            </div>
-          </motion.div>
-        </div>
       </motion.div>
     </>
   );
@@ -344,11 +318,11 @@ const ProfessionalStatCard = ({
   return (
     <motion.div
       whileHover={{
-        y: -8,
-        boxShadow: "0 25px 50px rgba(0,0,0,0.15)",
+        y: -4,
+        boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
       }}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-      className="group relative bg-white rounded-3xl p-8 border border-gray-100/50 overflow-hidden"
+      className="group relative bg-white rounded-2xl p-6 border border-gray-100/50 overflow-hidden"
       style={{
         background:
           "linear-gradient(145deg, rgba(255,255,255,0.9), rgba(248,250,252,0.9))",
@@ -872,7 +846,7 @@ const ProfessionalDashboard = () => {
             className="w-20 h-20 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-6"
           />
           <p className="text-xl font-bold text-gray-700">
-            Loading WildGuard Intelligence...
+            Loading Conservatron Intelligence...
           </p>
           <p className="text-gray-500 mt-2">
             Connecting to conservation networks
@@ -974,7 +948,7 @@ const ProfessionalDashboard = () => {
       </motion.div>
 
       {/* Enhanced Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
         <ProfessionalStatCard
           title="Active Scans"
           value={realTimeStats.active_scans}
@@ -1012,7 +986,7 @@ const ProfessionalDashboard = () => {
         <ProfessionalStatCard
           title="Protected Species"
           value={realTimeStats.total_species_protected}
-          icon={Shield}
+          icon={Leaf}
           gradient="from-purple-500 to-purple-600"
           subtitle="CITES-listed coverage"
         />
@@ -1027,7 +1001,7 @@ const ProfessionalDashboard = () => {
       </div>
 
       {/* Enhanced Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -2010,7 +1984,7 @@ const App = () => {
         <ProfessionalSidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col lg:ml-0 overflow-hidden">
+        <div className="flex-1 flex flex-col lg:ml-64 overflow-hidden">
           {/* Enhanced Mobile Header */}
           <header className="bg-white/80 border-b border-gray-200/50 px-6 py-4 lg:hidden">
             <div className="flex items-center justify-between">
@@ -2025,10 +1999,10 @@ const App = () => {
 
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-                  <Shield size={24} className="text-white" />
+                  <Leaf size={24} className="text-white" />
                 </div>
                 <h1 className="text-xl font-bold text-gray-900">
-                  WildGuard AI
+                  The Conservatron 12000
                 </h1>
               </div>
 
@@ -2038,7 +2012,7 @@ const App = () => {
 
           {/* Enhanced Page Content */}
           <main className="flex-1 overflow-y-auto">
-            <div className="p-8 lg:p-12">
+            <div className="p-6 lg:p-8 xl:p-12">
               <AnimatePresence mode="wait">
                 <Routes>
                   <Route path="/" element={<ProfessionalDashboard />} />
