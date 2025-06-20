@@ -3,67 +3,67 @@ name: WildGuard Maximum Scale Autonomous Scanner
 on:
   schedule:
     # Run every hour at minute 0 - COMPLETELY AUTONOMOUS
-    - cron: '0 * * * *'
-  workflow_dispatch:  # Allow manual triggers for testing
+    - cron: "0 * * * *"
+  workflow_dispatch: # Allow manual triggers for testing
 
 jobs:
   autonomous-scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # Prevent hanging
-    
+    timeout-minutes: 45 # Prevent hanging
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y wget gnupg
-        
-    - name: Install Python dependencies
-      run: |
-        pip install --upgrade pip
-        pip install -r requirements.production.txt
-        
-    - name: Install Playwright browsers
-      run: |
-        playwright install chromium
-        playwright install-deps
-        
-    - name: Run Maximum Scale Autonomous Scan
-      id: scan
-      env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
-        EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
-        EBAY_DEV_ID: ${{ secrets.EBAY_DEV_ID }}
-      run: |
-        echo "🚀 Starting autonomous maximum scale scan..."
-        python production_scanner.py || echo "⚠️ Scan completed with issues but system continues"
-        echo "✅ Autonomous scan completed - will retry in 1 hour"
-        
-    - name: Upload scan logs
-      if: always()  # Always upload logs regardless of success/failure
-      uses: actions/upload-artifact@v3
-      with:
-        name: autonomous-scan-logs-${{ github.run_number }}
-        path: |
-          *.log
-        retention-days: 3
-        
-    - name: Autonomous Status Report
-      if: always()
-      run: |
-        echo "🤖 AUTONOMOUS OPERATION REPORT"
-        echo "=============================="
-        echo "Timestamp: $(date)"
-        echo "Next scan: In 1 hour ($(date -d '+1 hour'))"
-        echo "Status: Operational (will continue automatically)"
-        echo "Intervention required: NO"
-        echo "=============================="
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.production.txt
+
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium
+          playwright install-deps
+
+      - name: Run Maximum Scale Autonomous Scan
+        id: scan
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
+          EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
+          EBAY_DEV_ID: ${{ secrets.EBAY_DEV_ID }}
+        run: |
+          echo "🚀 Starting autonomous maximum scale scan..."
+          python production_scanner.py || echo "⚠️ Scan completed with issues but system continues"
+          echo "✅ Autonomous scan completed - will retry in 1 hour"
+
+      - name: Upload scan logs
+        if: always() # Always upload logs regardless of success/failure
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomous-scan-logs-${{ github.run_number }}
+          path: |
+            *.log
+          retention-days: 3
+
+      - name: Autonomous Status Report
+        if: always()
+        run: |
+          echo "🤖 AUTONOMOUS OPERATION REPORT"
+          echo "=============================="
+          echo "Timestamp: $(date)"
+          echo "Next scan: In 1 hour ($(date -d '+1 hour'))"
+          echo "Status: Operational (will continue automatically)"
+          echo "Intervention required: NO"
+          echo "=============================="
