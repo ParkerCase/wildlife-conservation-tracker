@@ -3,83 +3,83 @@ name: WildGuard Production Scanner
 on:
   schedule:
     # Run every hour at minute 0
-    - cron: '0 * * * *'
-  workflow_dispatch:  # Allow manual triggers
+    - cron: "0 * * * *"
+  workflow_dispatch: # Allow manual triggers
 
 jobs:
   scan:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y wget gnupg
-        
-    - name: Install Python dependencies
-      run: |
-        pip install --upgrade pip
-        pip install -r requirements.production.txt
-        
-    - name: Install Playwright browsers
-      run: |
-        playwright install chromium
-        playwright install-deps
-        
-    - name: Debug environment
-      run: |
-        echo "Current directory: $(pwd)"
-        echo "Files in directory:"
-        ls -la
-        echo "Python version: $(python --version)"
-        echo "Environment variables (masked):"
-        echo "SUPABASE_URL: ${SUPABASE_URL:0:20}..."
-        echo "EBAY_APP_ID: ${EBAY_APP_ID:0:10}..."
-        
-    - name: Run production scan
-      env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
-        EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
-        EBAY_DEV_ID: ${{ secrets.EBAY_DEV_ID }}
-      run: |
-        echo "Starting production scan..."
-        python production_scanner.py 2>&1 | tee scan_output.log
-        echo "Scan completed with exit code: $?"
-        
-    - name: Show logs if they exist
-      if: always()
-      run: |
-        echo "=== Scan Output ==="
-        if [ -f scan_output.log ]; then
-          cat scan_output.log
-        fi
-        echo "=== Production Log ==="
-        if [ -f wildguard_production.log ]; then
-          cat wildguard_production.log
-        fi
-        echo "=== Scheduler Log ==="
-        if [ -f wildguard_scheduler.log ]; then
-          cat wildguard_scheduler.log
-        fi
-        
-    - name: Upload all logs
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: production-logs
-        path: |
-          scan_output.log
-          wildguard_production.log
-          wildguard_scheduler.log
-          *.log
-        retention-days: 7
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.production.txt
+
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium
+          playwright install-deps
+
+      - name: Debug environment
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Files in directory:"
+          ls -la
+          echo "Python version: $(python --version)"
+          echo "Environment variables (masked):"
+          echo "SUPABASE_URL: ${SUPABASE_URL:0:20}..."
+          echo "EBAY_APP_ID: ${EBAY_APP_ID:0:10}..."
+
+      - name: Run production scan
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
+          EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
+          EBAY_DEV_ID: ${{ secrets.EBAY_DEV_ID }}
+        run: |
+          echo "Starting production scan..."
+          python production_scanner.py 2>&1 | tee scan_output.log
+          echo "Scan completed with exit code: $?"
+
+      - name: Show logs if they exist
+        if: always()
+        run: |
+          echo "=== Scan Output ==="
+          if [ -f scan_output.log ]; then
+            cat scan_output.log
+          fi
+          echo "=== Production Log ==="
+          if [ -f wildguard_production.log ]; then
+            cat wildguard_production.log
+          fi
+          echo "=== Scheduler Log ==="
+          if [ -f wildguard_scheduler.log ]; then
+            cat wildguard_scheduler.log
+          fi
+
+      - name: Upload all logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-logs
+          path: |
+            scan_output.log
+            wildguard_production.log
+            wildguard_scheduler.log
+            *.log
+          retention-days: 7
