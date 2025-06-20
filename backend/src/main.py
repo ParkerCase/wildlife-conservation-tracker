@@ -59,6 +59,8 @@ class ConservationBot:
         async with self.scanner as scanner:
             raw_listings = await scanner.scan_all_platforms()
         logging.info(f"Scanned {len(raw_listings)} listings across all platforms")
+        # Limit to 10 listings for initial test
+        raw_listings = raw_listings[:10]
         # Process each listing
         for listing in raw_listings:
             try:
@@ -69,10 +71,19 @@ class ConservationBot:
                     )
                 )
                 listing_with_language = {**listing, **language_analysis}
+                # Image recognition (if images present)
+                image_results = []
+                images = listing.get("images") or []
+                if isinstance(listing.get("image"), str):
+                    images.append(listing["image"])  # Some scrapers use 'image'
+                for img_url in images:
+                    img_result = await self.analyzer.analyze_image(img_url)
+                    image_results.append({"image_url": img_url, **img_result})
                 # AI threat analysis
                 threat_analysis = await self.analyzer.analyze_listing(
                     listing_with_language
                 )
+                threat_analysis["image_analysis"] = image_results
                 # Print the actual results for demo
                 print("\n=== LISTING ANALYSIS RESULT ===")
                 print("Listing:", listing)

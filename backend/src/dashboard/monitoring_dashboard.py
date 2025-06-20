@@ -36,29 +36,66 @@ class MonitoringDashboard:
 
     def get_current_statistics(self) -> Dict:
         today = datetime.now().strftime("%Y-%m-%d")
+        # Threats detected today
         threats_today = (
             self.supabase.table("detections")
             .select("*")
-            .eq("timestamp", today)
+            .gte("timestamp", today + "T00:00:00")
+            .lte("timestamp", today + "T23:59:59")
             .execute()
-            .count
         )
+        threats_count = len(threats_today.data) if threats_today.data else 0
+
+        # Alerts sent today
         alerts_today = (
             self.supabase.table("detections")
             .select("*")
-            .eq("timestamp", today)
+            .gte("timestamp", today + "T00:00:00")
+            .lte("timestamp", today + "T23:59:59")
             .eq("alert_sent", True)
             .execute()
-            .count
         )
+        alerts_count = len(alerts_today.data) if alerts_today.data else 0
+
+        # Platforms monitored (unique platforms in detections)
+        platforms = set()
+        if threats_today.data:
+            for d in threats_today.data:
+                if "platform" in d and d["platform"]:
+                    platforms.add(d["platform"])
+        platforms_monitored = len(platforms)
+
+        # Total species protected (unique species in detections)
+        species = set()
+        if threats_today.data:
+            for d in threats_today.data:
+                if "species_involved" in d and d["species_involved"]:
+                    try:
+                        s = json.loads(d["species_involved"])
+                        if isinstance(s, list):
+                            species.update(s)
+                        else:
+                            species.add(s)
+                    except Exception:
+                        species.add(d["species_involved"])
+        total_species_protected = len(species)
+
+        # Authorities connected (if you have a table)
+        try:
+            authorities = self.supabase.table("authorities").select("*").execute()
+            authorities_connected = len(authorities.data) if authorities.data else 0
+        except Exception:
+            authorities_connected = 0
+
         return {
-            "active_scans": self.real_time_data["active_scans"],
-            "threats_detected_today": threats_today,
-            "alerts_sent_today": alerts_today,
-            "platforms_monitored": 4,
-            "total_species_protected": 150,
-            "authorities_connected": 12,
+            "active_scans": platforms_monitored,  # or another real metric
+            "threats_detected_today": threats_count,
+            "alerts_sent_today": alerts_count,
+            "platforms_monitored": platforms_monitored,
+            "total_species_protected": total_species_protected,
+            "authorities_connected": authorities_connected,
             "last_updated": datetime.now().isoformat(),
+            "platform_names": list(platforms),
         }
 
     def get_recent_detections(self, limit: int = 20) -> List[Dict]:

@@ -1968,65 +1968,144 @@ const Reports = () => {
   );
 };
 
+const USERNAME = "conservatron12000"; // Set your admin username
+const PASSWORD = "SavingPandasLeftRightLeftRight&LeftAgain4000"; // Set your admin password
+
+function LoginModal({ onSuccess }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (username === USERNAME && password === PASSWORD) {
+      onSuccess();
+    } else {
+      setError("Invalid credentials");
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        background: "rgba(0,0,0,0.9)",
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <form
+        onSubmit={handleLogin}
+        style={{
+          background: "#fff",
+          padding: 32,
+          borderRadius: 12,
+          minWidth: 320,
+        }}
+      >
+        <h2>Login Required</h2>
+        <input
+          type="text"
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          style={{ display: "block", margin: "16px 0", width: "100%" }}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ display: "block", margin: "16px 0", width: "100%" }}
+        />
+        {error && <div style={{ color: "red" }}>{error}</div>}
+        <button type="submit" style={{ width: "100%" }}>
+          Login
+        </button>
+      </form>
+    </div>
+  );
+}
+
 // Main App Component
 const App = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
 
   return (
-    <Router>
-      <div
-        className="min-h-screen flex overflow-hidden"
-        style={{
-          background:
-            "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%)",
-        }}
-      >
-        <ProfessionalSidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+    <>
+      {!authenticated && (
+        <LoginModal onSuccess={() => setAuthenticated(true)} />
+      )}
+      <div style={{ filter: authenticated ? "none" : "blur(2px)" }}>
+        <Router>
+          <div
+            className="min-h-screen flex overflow-hidden"
+            style={{
+              background:
+                "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%)",
+            }}
+          >
+            <ProfessionalSidebar
+              isOpen={sidebarOpen}
+              setIsOpen={setSidebarOpen}
+            />
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col lg:ml-64 overflow-hidden">
-          {/* Enhanced Mobile Header */}
-          <header className="bg-white/80 border-b border-gray-200/50 px-6 py-4 lg:hidden">
-            <div className="flex items-center justify-between">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setSidebarOpen(true)}
-                className="p-3 hover:bg-gray-100 rounded-2xl transition-colors"
-              >
-                <Menu size={24} className="text-gray-600" />
-              </motion.button>
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col  overflow-hidden">
+              {/* Enhanced Mobile Header */}
+              <header className="bg-white/80 border-b border-gray-200/50 px-6 py-4 lg:hidden">
+                <div className="flex items-center justify-between">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSidebarOpen(true)}
+                    className="p-3 hover:bg-gray-100 rounded-2xl transition-colors"
+                  >
+                    <Menu size={24} className="text-gray-600" />
+                  </motion.button>
 
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-                  <Leaf size={24} className="text-white" />
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+                      <Leaf size={24} className="text-white" />
+                    </div>
+                    <h1 className="text-xl font-bold text-gray-900">
+                      The Conservatron 12000
+                    </h1>
+                  </div>
+
+                  <div className="w-12" />
                 </div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  The Conservatron 12000
-                </h1>
-              </div>
+              </header>
 
-              <div className="w-12" />
+              {/* Enhanced Page Content */}
+              <main className="flex-1 overflow-y-auto">
+                <div className="p-6 lg:p-8 xl:p-12">
+                  <AnimatePresence mode="wait">
+                    <Routes>
+                      <Route path="/" element={<ProfessionalDashboard />} />
+                      <Route
+                        path="/analytics"
+                        element={<AdvancedAnalytics />}
+                      />
+                      <Route path="/threats" element={<ThreatIntelligence />} />
+                      <Route path="/evidence" element={<EvidenceArchive />} />
+                      <Route path="/reports" element={<Reports />} />
+                    </Routes>
+                  </AnimatePresence>
+                </div>
+              </main>
             </div>
-          </header>
-
-          {/* Enhanced Page Content */}
-          <main className="flex-1 overflow-y-auto">
-            <div className="p-6 lg:p-8 xl:p-12">
-              <AnimatePresence mode="wait">
-                <Routes>
-                  <Route path="/" element={<ProfessionalDashboard />} />
-                  <Route path="/analytics" element={<AdvancedAnalytics />} />
-                  <Route path="/threats" element={<ThreatIntelligence />} />
-                  <Route path="/evidence" element={<EvidenceArchive />} />
-                  <Route path="/reports" element={<Reports />} />
-                </Routes>
-              </AnimatePresence>
-            </div>
-          </main>
-        </div>
+          </div>
+        </Router>
       </div>
-    </Router>
+    </>
   );
 };
 

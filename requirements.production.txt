@@ -1,0 +1,19 @@
+# WildGuard AI - Production Requirements
+aiohttp==3.9.1
+playwright==1.40.0
+fake-useragent==1.5.1
+python-dotenv==1.0.0
+supabase==2.0.2
+beautifulsoup4==4.12.2
+schedule==1.2.0
+requests==2.31.0
+asyncio==3.4.3
+
+# Logging and monitoring
+python-json-logger==2.0.7
+
+# Error handling
+tenacity==8.2.3
+
+# Optional: For health checks
+flask==3.0.0

@@ -27,9 +27,9 @@ class MockData:
 
 # Try to import real components, fall back to mock data
 try:
-    from backend.src.monitoring.platform_scanner import PlatformScanner
-    from backend.src.ai.threat_analyzer import ThreatAnalyzer
-    from backend.src.dashboard.monitoring_dashboard import MonitoringDashboard
+    from src.monitoring.platform_scanner import PlatformScanner
+    from src.ai.threat_analyzer import ThreatAnalyzer
+    from src.dashboard.monitoring_dashboard import MonitoringDashboard
 
     scanner = PlatformScanner()
     dashboard = MonitoringDashboard()
@@ -169,14 +169,43 @@ def get_threat_details(threat_id):
 
             threat = result.data[0]
 
+            # Gather all listings for the same seller (if seller_id exists)
+            seller_id = threat.get("seller_id")
+            seller_data = []
+            if seller_id:
+                seller_results = (
+                    dashboard.supabase.table("detections")
+                    .select("*")
+                    .eq("seller_id", seller_id)
+                    .execute()
+                )
+                seller_data = seller_results.data if seller_results.data else []
+
+            # Anthropic-powered network analysis
+            network_analysis = None
+            try:
+                from src.ai.threat_analyzer import ThreatAnalyzer
+                import os
+
+                analyzer = ThreatAnalyzer(os.getenv("ANTHROPIC_API_KEY"))
+                import asyncio
+
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                network_analysis = loop.run_until_complete(
+                    analyzer.analyze_network(
+                        {"seller_id": seller_id, "listings": seller_data}
+                    )
+                )
+            except Exception as e:
+                network_analysis = {"error": str(e)}
+
             return jsonify(
                 {
                     "threat": threat,
                     "ai_analysis": json.loads(threat.get("ai_analysis", "{}")),
                     "evidence_package": get_evidence_details(threat_id),
-                    "network_analysis": get_network_data(
-                        threat.get("platform"), threat.get("seller_id")
-                    ),
+                    "network_analysis": network_analysis,
                 }
             )
         else:

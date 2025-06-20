@@ -1,0 +1,43 @@
+# WildGuard AI - Production Dockerfile
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    unzip \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Playwright dependencies
+RUN python -m pip install --upgrade pip
+RUN pip install playwright
+RUN playwright install chromium
+RUN playwright install-deps
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create logs directory
+RUN mkdir -p /app/logs
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+# Expose port (if needed for health checks)
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
+
+# Default command - run scheduler
+CMD ["python", "scheduler.py"]
