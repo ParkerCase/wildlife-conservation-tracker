@@ -3,52 +3,52 @@ name: WildGuard Production Scanner
 on:
   schedule:
     # Run every hour at minute 0
-    - cron: '0 * * * *'
-  workflow_dispatch:  # Allow manual triggers
+    - cron: "0 * * * *"
+  workflow_dispatch: # Allow manual triggers
 
 jobs:
   scan:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y wget gnupg
-        
-    - name: Install Python dependencies
-      run: |
-        pip install -r requirements.production.txt
-        
-    - name: Install Playwright browsers
-      run: |
-        playwright install chromium
-        playwright install-deps
-        
-    - name: Run production scan
-      env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
-        EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
-        EBAY_DEV_ID: ${{ secrets.EBAY_DEV_ID }}
-      run: |
-        python production_scanner.py
-        
-    - name: Upload logs
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: production-logs
-        path: |
-          wildguard_production.log
-          wildguard_scheduler.log
-        retention-days: 7
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.production.txt
+
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium
+          playwright install-deps
+
+      - name: Run production scan
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
+          EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
+          EBAY_DEV_ID: ${{ secrets.EBAY_DEV_ID }}
+        run: |
+          python production_scanner.py
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-logs
+          path: |
+            wildguard_production.log
+            wildguard_scheduler.log
+          retention-days: 7
