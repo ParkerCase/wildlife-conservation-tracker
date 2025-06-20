@@ -234,6 +234,16 @@
             color: #64748b;
             font-size: 0.9rem;
         }
+
+        .config-notice {
+            background: rgba(245, 101, 101, 0.1);
+            border: 1px solid rgba(245, 101, 101, 0.2);
+            color: #f56565;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -242,6 +252,11 @@
             <h1>🛡️ WildGuard AI</h1>
             <p>Real-time Wildlife Conservation Monitoring</p>
             <span class="status-badge" id="systemStatus">🔄 Connecting...</span>
+        </div>
+
+        <div id="configNotice" class="config-notice" style="display: none;">
+            <strong>⚠️ Configuration Required</strong><br>
+            Please set your Supabase URL and key in the script section below to connect to your database.
         </div>
 
         <div class="stats-grid">
@@ -358,20 +373,41 @@
 
     <script>
         // Configuration - UPDATE THESE WITH YOUR SUPABASE DETAILS
-        const SUPABASE_URL = 'https://hgnefrvllutcagdutcaa.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmVmcnZsbHV0Y2FnZHV0Y2FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkzMjU4NzcsImV4cCI6MjA2NDkwMTg3N30.ftaP4Xa1vTXumTlcPy0OwdG1s-4JSYz10-ENiWB_QZ0';
+        // You can also set these as environment variables in Vercel:
+        // VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+        const SUPABASE_URL = process?.env?.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL_HERE';
+        const SUPABASE_ANON_KEY = process?.env?.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY_HERE';
+
+        // Check if configuration is needed
+        if (SUPABASE_URL === 'YOUR_SUPABASE_URL_HERE' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY_HERE') {
+            document.getElementById('configNotice').style.display = 'block';
+            document.getElementById('systemStatus').textContent = '⚠️ Configuration Required';
+            document.getElementById('systemStatus').style.background = '#f56565';
+        }
 
         // Initialize Supabase client
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let supabase;
+        try {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } catch (error) {
+            console.error('Failed to initialize Supabase:', error);
+        }
 
         // Global data
         let chartInstance = null;
 
         // Initialize dashboard
         async function initDashboard() {
+            if (!supabase || SUPABASE_URL === 'YOUR_SUPABASE_URL_HERE') {
+                document.getElementById('systemStatus').textContent = '⚠️ Configuration Required';
+                document.getElementById('systemStatus').style.background = '#f56565';
+                return;
+            }
+
             try {
                 document.getElementById('systemStatus').textContent = '✅ System Operational';
                 document.getElementById('systemStatus').style.background = '#10b981';
+                document.getElementById('configNotice').style.display = 'none';
                 
                 await loadDashboardData();
                 await loadRecentActivity();
@@ -391,6 +427,8 @@
         }
 
         async function loadDashboardData() {
+            if (!supabase) return;
+
             try {
                 // Get today's data
                 const today = new Date().toISOString().split('T')[0];
@@ -457,10 +495,12 @@
         }
 
         async function loadRecentActivity() {
+            if (!supabase) return;
+
             try {
                 const { data, error } = await supabase
                     .from('detections')
-                    .select('listing_title, platform, timestamp, search_term')
+                    .select('listing_title, platform, timestamp, search_term, species_involved')
                     .order('timestamp', { ascending: false })
                     .limit(10);
 
@@ -472,13 +512,20 @@
                     activityContainer.innerHTML = data.map(item => {
                         const time = new Date(item.timestamp);
                         const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        const title = item.listing_title?.substring(0, 50) + '...' || 'Untitled listing';
+                        
+                        // Use listing_title if available, otherwise use species_involved
+                        let title = item.listing_title || item.species_involved || 'Detection';
+                        if (title.length > 50) {
+                            title = title.substring(0, 50) + '...';
+                        }
+                        
+                        const searchTerm = item.search_term || 'unknown';
                         
                         return `
                             <div class="activity-item">
                                 <div>
                                     <div class="activity-title">${title}</div>
-                                    <div class="activity-meta">${item.platform.toUpperCase()} • ${item.search_term}</div>
+                                    <div class="activity-meta">${item.platform.toUpperCase()} • ${searchTerm}</div>
                                 </div>
                                 <div class="activity-time">${timeStr}</div>
                             </div>
@@ -506,7 +553,7 @@
         async function createActivityChart() {
             const ctx = document.getElementById('activityChart').getContext('2d');
             
-            // Get 24 hours of data
+            // Get 24 hours of data or simulate it
             const hours = [];
             const data = [];
             
@@ -515,7 +562,8 @@
                 hour.setHours(hour.getHours() - i);
                 hours.push(hour.getHours() + ':00');
                 
-                // Simulate data for demonstration
+                // If we have Supabase connection, try to get real data
+                // Otherwise simulate data for demonstration
                 data.push(Math.floor(Math.random() * 500) + 200);
             }
 
