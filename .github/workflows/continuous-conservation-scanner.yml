@@ -3,58 +3,58 @@ name: WildGuard Continuous Conservation Scanner
 on:
   schedule:
     # Run every 6 hours for maximum GitHub Actions efficiency
-    - cron: '0 */6 * * *'
-  workflow_dispatch:  # Manual triggers
+    - cron: "0 */6 * * *"
+  workflow_dispatch: # Manual triggers
 
 jobs:
   continuous-conservation-scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # 6 hours maximum
-    
+    timeout-minutes: 360 # 6 hours maximum
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install -r requirements.production.txt
-        playwright install chromium
-        playwright install-deps
-        
-    - name: Run Continuous Conservation Scanner
-      env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
-        EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
-        EBAY_DEV_ID: ${{ secrets.EBAY_DEV_ID }}
-      run: |
-        echo "🦏 Starting 6-hour continuous conservation scanning..."
-        timeout 21000s python continuous_deduplication_scanner.py || echo "✅ 6-hour scan session completed"
-        
-    - name: Upload scan logs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: conservation-scan-logs-${{ github.run_number }}
-        path: |
-          *.log
-        retention-days: 7
-        
-    - name: Conservation Impact Report
-      if: always()
-      run: |
-        echo "🦏 CONSERVATION SCANNING SESSION COMPLETED"
-        echo "=========================================="
-        echo "Session duration: 6 hours maximum"
-        echo "Next session: In 6 hours"
-        echo "Keywords rotated: 1000+ endangered species"
-        echo "Deduplication: Active (honest metrics)"
-        echo "Focus: Wildlife trafficking detection"
-        echo "=========================================="
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.production.txt
+          playwright install chromium
+          playwright install-deps
+
+      - name: Run Continuous Conservation Scanner
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
+          EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
+          EBAY_DEV_ID: ${{ secrets.EBAY_DEV_ID }}
+        run: |
+          echo "🦏 Starting 6-hour continuous conservation scanning..."
+          timeout 21000s python continuous_deduplication_scanner.py || echo "✅ 6-hour scan session completed"
+
+      - name: Upload scan logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conservation-scan-logs-${{ github.run_number }}
+          path: |
+            *.log
+          retention-days: 7
+
+      - name: Conservation Impact Report
+        if: always()
+        run: |
+          echo "🦏 CONSERVATION SCANNING SESSION COMPLETED"
+          echo "=========================================="
+          echo "Session duration: 6 hours maximum"
+          echo "Next session: In 6 hours"
+          echo "Keywords rotated: 1000+ endangered species"
+          echo "Deduplication: Active (honest metrics)"
+          echo "Focus: Wildlife trafficking detection"
+          echo "=========================================="
