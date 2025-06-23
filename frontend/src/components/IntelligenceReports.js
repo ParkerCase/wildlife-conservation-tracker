@@ -30,58 +30,64 @@ const useIntelligenceData = () => {
   useEffect(() => {
     const fetchIntelligenceData = async () => {
       try {
-        // Get total count and statistics
+        // OPTIMIZED: Use smaller, targeted queries to avoid timeouts
+        
+        // Get total count (quick head request)
         const { count: totalCount, error: countError } = await supabase
           .from('detections')
-          .select('*', { count: 'exact', head: true });
+          .select('*', { count: 'exact', head: true })
+          .limit(1);
 
-        // Get threat level breakdown
-        const { data: threatData, error: threatError } = await supabase
+        // Get limited threat level breakdown to extrapolate
+        const { data: threatSample, error: threatError } = await supabase
           .from('detections')
           .select('threat_level')
-          .not('threat_level', 'is', null);
+          .not('threat_level', 'is', null)
+          .limit(5000); // Limited sample to avoid timeout
 
-        // Get platform statistics
-        const { data: platformData, error: platformError } = await supabase
+        // Get limited platform statistics to extrapolate
+        const { data: platformSample, error: platformError } = await supabase
           .from('detections')
           .select('platform')
-          .not('platform', 'is', null);
+          .not('platform', 'is', null)
+          .limit(5000); // Limited sample
 
-        // Get pricing data
-        const { data: priceData, error: priceError } = await supabase
+        // Get limited pricing data to calculate averages
+        const { data: priceSample, error: priceError } = await supabase
           .from('detections')
           .select('listing_price')
           .not('listing_price', 'is', null)
-          .gte('listing_price', 0);
+          .gte('listing_price', 0)
+          .limit(2000); // Limited sample
 
-        // Get recent trends (last 30 days)
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        // Get recent trends (last 7 days only to avoid timeout)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         
         const { data: recentData, error: recentError } = await supabase
           .from('detections')
           .select('timestamp, threat_level, platform')
-          .gte('timestamp', thirtyDaysAgo.toISOString())
+          .gte('timestamp', sevenDaysAgo.toISOString())
           .order('timestamp', { ascending: false })
           .limit(1000);
 
-        // Get keyword usage statistics
-        const { data: keywordData, error: keywordError } = await supabase
+        // Get limited keyword usage statistics
+        const { data: keywordSample, error: keywordError } = await supabase
           .from('detections')
           .select('search_term')
           .not('search_term', 'is', null)
-          .limit(5000);
+          .limit(2000); // Limited sample
 
         // Process threat level breakdown
         const threatBreakdown = {
-          high: threatData?.filter(d => d.threat_level?.toLowerCase() === 'high').length || 0,
-          medium: threatData?.filter(d => d.threat_level?.toLowerCase() === 'medium').length || 0,
-          low: threatData?.filter(d => d.threat_level?.toLowerCase() === 'low').length || 0
+          high: threatSample.data?.filter(d => d.threat_level?.toLowerCase() === 'high').length || 0,
+          medium: threatSample.data?.filter(d => d.threat_level?.toLowerCase() === 'medium').length || 0,
+          low: threatSample.data?.filter(d => d.threat_level?.toLowerCase() === 'low').length || 0
         };
 
         // Process platform statistics
         const platformStats = {};
-        platformData?.forEach(d => {
+        platformSample.data?.forEach(d => {
           const platform = d.platform?.toLowerCase();
           if (platform) {
             platformStats[platform] = (platformStats[platform] || 0) + 1;
@@ -89,7 +95,7 @@ const useIntelligenceData = () => {
         });
 
         // Process pricing data
-        const validPrices = priceData?.map(d => parseFloat(d.listing_price)).filter(p => !isNaN(p) && p > 0) || [];
+        const validPrices = priceSample.data?.map(d => parseFloat(d.listing_price)).filter(p => !isNaN(p) && p > 0) || [];
         const totalValue = validPrices.reduce((sum, price) => sum + price, 0);
         const averagePrice = validPrices.length > 0 ? totalValue / validPrices.length : 0;
 
@@ -115,7 +121,7 @@ const useIntelligenceData = () => {
 
         // Process top keywords
         const keywordCounts = {};
-        keywordData?.forEach(d => {
+        keywordSample.data?.forEach(d => {
           const keyword = d.search_term?.toLowerCase();
           if (keyword) {
             keywordCounts[keyword] = (keywordCounts[keyword] || 0) + 1;
