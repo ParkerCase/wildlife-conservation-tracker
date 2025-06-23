@@ -29,98 +29,92 @@ const useEvidenceData = () => {
   useEffect(() => {
     const fetchEvidence = async () => {
       try {
-        console.log('Fetching evidence data...');
-        // OPTIMIZED: Use smaller, targeted queries to avoid timeout
-        const [highPriority, mediumPriority, recentEvidence] = await Promise.allSettled([
-          // Priority 1: High threat level evidence with URLs
-          supabase
-            .from('detections')
-            .select('id, listing_title, platform, threat_level, threat_score, timestamp, listing_price, listing_url, search_term, screenshot_url')
-            .eq('threat_level', 'HIGH')
-            .not('listing_url', 'is', null)
-            .order('threat_score', { ascending: false })
-            .order('timestamp', { ascending: false })
-            .limit(100),
-
-          // Priority 2: Medium threat level evidence 
-          supabase
-            .from('detections')
-            .select('id, listing_title, platform, threat_level, threat_score, timestamp, listing_price, listing_url, search_term, screenshot_url')
-            .eq('threat_level', 'MEDIUM')
-            .not('listing_url', 'is', null)
-            .order('threat_score', { ascending: false })
-            .order('timestamp', { ascending: false })
-            .limit(100),
-
-          // Priority 3: Recent evidence regardless of threat level
-          supabase
-            .from('detections')
-            .select('id, listing_title, platform, threat_level, threat_score, timestamp, listing_price, listing_url, search_term, screenshot_url')
-            .not('listing_url', 'is', null)
-            .order('timestamp', { ascending: false })
-            .limit(100)
-        ]);
-
-        let allEvidence = [];
-
-        if (highPriority.status === 'fulfilled' && highPriority.value.data) {
-          allEvidence = [...allEvidence, ...highPriority.value.data];
-          console.log(`Loaded ${highPriority.value.data.length} high priority evidence`);
-        } else {
-          console.log('High priority evidence query failed');
+        console.log('🔍 EvidenceArchive: Starting evidence data fetch...');
+        
+        // FIRST: Test basic database connection
+        console.log('⏰ Testing basic database query...');
+        const { data: testQuery, error: testError } = await supabase
+          .from('detections')
+          .select('id, listing_title, platform, listing_url')
+          .limit(3);
+        
+        console.log('🧪 Test query - Sample records:', testQuery);
+        if (testError) {
+          console.error('❌ Test query error:', testError);
         }
-
-        if (mediumPriority.status === 'fulfilled' && mediumPriority.value.data) {
-          allEvidence = [...allEvidence, ...mediumPriority.value.data];
-          console.log(`Loaded ${mediumPriority.value.data.length} medium priority evidence`);
-        } else {
-          console.log('Medium priority evidence query failed');
+        
+        // SECOND: Check how many records have URLs (important for evidence)
+        console.log('🔗 Checking URL availability...');
+        const { data: urlCheck, error: urlError } = await supabase
+          .from('detections')
+          .select('listing_url')
+          .not('listing_url', 'is', null)
+          .limit(10);
+        
+        console.log(`🔗 Found ${urlCheck?.length || 0} records with URLs:`, urlCheck?.map(d => d.listing_url?.slice(0, 50)));
+        if (urlError) {
+          console.error('❌ URL check error:', urlError);
         }
-
-        if (recentEvidence.status === 'fulfilled' && recentEvidence.value.data) {
-          allEvidence = [...allEvidence, ...recentEvidence.value.data];
-          console.log(`Loaded ${recentEvidence.value.data.length} recent evidence`);
-        } else {
-          console.log('Recent evidence query failed');
+        
+        // THIRD: Get actual evidence data with simplified approach
+        console.log('📁 Fetching evidence records...');
+        const { data: allEvidence, error: allEvidenceError } = await supabase
+          .from('detections')
+          .select('id, listing_title, platform, threat_level, threat_score, timestamp, listing_price, listing_url, search_term, screenshot_url')
+          .order('timestamp', { ascending: false })
+          .limit(300); // Get more records to ensure we have good evidence
+        
+        if (allEvidenceError) {
+          console.error('❌ Evidence query error:', allEvidenceError);
+          throw allEvidenceError;
         }
+        
+        console.log(`✅ Successfully fetched ${allEvidence?.length || 0} evidence records`);
+        
+        if (allEvidence && allEvidence.length > 0) {
+          // Transform data to include evidence metadata
+          const evidenceData = allEvidence.map(detection => ({
+            id: detection.id,
+            threat_id: detection.id,
+            title: detection.listing_title || 'Wildlife Product Detection',
+            platform: detection.platform,
+            url: detection.listing_url,
+            screenshot_url: detection.screenshot_url,
+            search_term: detection.search_term,
+            threat_level: detection.threat_level,
+            threat_score: detection.threat_score,
+            timestamp: detection.timestamp,
+            listing_price: detection.listing_price,
+            evidence_type: detection.listing_url ? 'url' : 'detection',
+            file_size: detection.screenshot_url ? '2.4 MB' : null,
+            file_type: detection.screenshot_url ? 'image/png' : null,
+            has_screenshot: Boolean(detection.screenshot_url),
+            has_analysis: Boolean(detection.threat_score)
+          }));
 
-        // Combine and deduplicate evidence
-        const uniqueEvidence = allEvidence.filter((evidence, index, self) => 
-          index === self.findIndex(e => e.id === evidence.id)
-        );
+          // Sort by priority: High threats first, then by threat score, then by timestamp
+          evidenceData.sort((a, b) => {
+            if (a.threat_level?.toLowerCase() === 'high' && b.threat_level?.toLowerCase() !== 'high') return -1;
+            if (a.threat_level?.toLowerCase() !== 'high' && b.threat_level?.toLowerCase() === 'high') return 1;
+            if (a.threat_level?.toLowerCase() === 'medium' && b.threat_level?.toLowerCase() === 'low') return -1;
+            if (a.threat_level?.toLowerCase() === 'low' && b.threat_level?.toLowerCase() === 'medium') return 1;
+            return (b.threat_score || 0) - (a.threat_score || 0);
+          });
 
-        console.log(`Total unique evidence loaded: ${uniqueEvidence.length}`);
-
-        // Transform data to include evidence metadata
-        const evidenceData = uniqueEvidence.map(detection => ({
-          id: detection.id,
-          threat_id: detection.id,
-          title: detection.listing_title || 'Wildlife Product Detection',
-          platform: detection.platform,
-          url: detection.listing_url,
-          screenshot_url: detection.screenshot_url,
-          search_term: detection.search_term,
-          threat_level: detection.threat_level,
-          threat_score: detection.threat_score,
-          timestamp: detection.timestamp,
-          listing_price: detection.listing_price,
-          evidence_type: detection.listing_url ? 'url' : 'detection',
-          file_size: detection.screenshot_url ? '2.4 MB' : null,
-          file_type: detection.screenshot_url ? 'image/png' : null,
-          has_screenshot: Boolean(detection.screenshot_url),
-          has_analysis: Boolean(detection.threat_score)
-        }));
-
-        // Sort by priority: High threats first, then by threat score, then by timestamp
-        evidenceData.sort((a, b) => {
-          if (a.threat_level === 'HIGH' && b.threat_level !== 'HIGH') return -1;
-          if (a.threat_level !== 'HIGH' && b.threat_level === 'HIGH') return 1;
-          if (a.threat_level === 'MEDIUM' && b.threat_level === 'LOW') return -1;
-          if (a.threat_level === 'LOW' && b.threat_level === 'MEDIUM') return 1;
-          return (b.threat_score || 0) - (a.threat_score || 0);
-        });
-
-        setEvidence(evidenceData);
+          console.log(`📈 Evidence breakdown by threat level:`);
+          const highEvidence = evidenceData.filter(e => e.threat_level?.toLowerCase() === 'high');
+          const mediumEvidence = evidenceData.filter(e => e.threat_level?.toLowerCase() === 'medium');
+          const lowEvidence = evidenceData.filter(e => e.threat_level?.toLowerCase() === 'low');
+          console.log(`  High: ${highEvidence.length}, Medium: ${mediumEvidence.length}, Low: ${lowEvidence.length}`);
+          
+          const withUrls = evidenceData.filter(e => e.url);
+          console.log(`🔗 Evidence with URLs: ${withUrls.length}/${evidenceData.length}`);
+          
+          setEvidence(evidenceData);
+        } else {
+          console.warn('⚠️  No evidence data found in database');
+          setEvidence([]);
+        }
         
       } catch (error) {
         console.error('Error fetching evidence:', error);

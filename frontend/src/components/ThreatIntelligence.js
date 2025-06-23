@@ -33,72 +33,69 @@ const ThreatIntelligence = () => {
   useEffect(() => {
     const fetchThreats = async () => {
       try {
-        console.log('Fetching threats data...');
-        // OPTIMIZED: Use multiple smaller queries to avoid timeout
-        const [highThreats, mediumThreats, recentThreats] = await Promise.allSettled([
-          // Priority 1: High threat level threats
-          supabase
-            .from('detections')
-            .select('id, listing_title, platform, threat_level, threat_score, timestamp, listing_price, listing_url, search_term')
-            .eq('threat_level', 'HIGH')
-            .order('threat_score', { ascending: false })
-            .order('timestamp', { ascending: false })
-            .limit(200),
+        console.log('🔍 ThreatIntelligence: Starting threat data fetch...');
+        
+        // FIRST: Try a simple query to see what's actually in the database
+        console.log('⏰ Testing basic query first...');
+        const { data: testQuery, error: testError } = await supabase
+          .from('detections')
+          .select('id, listing_title, platform, threat_level')
+          .limit(5);
+        
+        console.log('🧪 Test query results:', testQuery);
+        if (testError) {
+          console.error('❌ Test query error:', testError);
+        }
+        
+        // SECOND: Check what threat levels actually exist
+        console.log('📊 Checking threat level distribution...');
+        const { data: threatCheck, error: threatCheckError } = await supabase
+          .from('detections')
+          .select('threat_level')
+          .not('threat_level', 'is', null)
+          .limit(100);
+        
+        console.log('📈 Threat levels found:', threatCheck?.map(d => d.threat_level));
+        if (threatCheckError) {
+          console.error('❌ Threat check error:', threatCheckError);
+        }
+        
+        // THIRD: Try the actual data fetch with simpler approach
+        console.log('🎯 Fetching actual threat data...');
+        const { data: allThreats, error: allThreatsError } = await supabase
+          .from('detections')
+          .select('id, listing_title, platform, threat_level, threat_score, timestamp, listing_price, listing_url, search_term')
+          .order('timestamp', { ascending: false })
+          .limit(500); // Start with larger but manageable limit
+        
+        if (allThreatsError) {
+          console.error('❌ All threats query error:', allThreatsError);
+          throw allThreatsError;
+        }
+        
+        console.log(`✅ Successfully fetched ${allThreats?.length || 0} threat records`);
+        
+        if (allThreats && allThreats.length > 0) {
+          // Filter and sort by priority
+          const highPriority = allThreats.filter(d => d.threat_level?.toLowerCase() === 'high');
+          const mediumPriority = allThreats.filter(d => d.threat_level?.toLowerCase() === 'medium');
+          const lowPriority = allThreats.filter(d => d.threat_level?.toLowerCase() === 'low');
           
-          // Priority 2: Medium threat level threats
-          supabase
-            .from('detections')
-            .select('id, listing_title, platform, threat_level, threat_score, timestamp, listing_price, listing_url, search_term')
-            .eq('threat_level', 'MEDIUM')
-            .order('threat_score', { ascending: false })
-            .order('timestamp', { ascending: false })
-            .limit(300),
+          console.log(`📊 Threat breakdown: ${highPriority.length} high, ${mediumPriority.length} medium, ${lowPriority.length} low`);
           
-          // Priority 3: Recent threats regardless of level
-          supabase
-            .from('detections')
-            .select('id, listing_title, platform, threat_level, threat_score, timestamp, listing_price, listing_url, search_term')
-            .not('threat_level', 'is', null)
-            .order('timestamp', { ascending: false })
-            .limit(200)
-        ]);
-
-        let allDetections = [];
-
-        if (highThreats.status === 'fulfilled' && highThreats.value.data) {
-          allDetections = [...allDetections, ...highThreats.value.data];
-          console.log(`Loaded ${highThreats.value.data.length} high threats`);
+          // Combine and sort by priority
+          const sortedThreats = [...highPriority, ...mediumPriority, ...lowPriority];
+          
+          setDetections(sortedThreats);
+        } else {
+          console.warn('⚠️  No threat data found in database');
+          setDetections([]);
         }
-
-        if (mediumThreats.status === 'fulfilled' && mediumThreats.value.data) {
-          allDetections = [...allDetections, ...mediumThreats.value.data];
-          console.log(`Loaded ${mediumThreats.value.data.length} medium threats`);
-        }
-
-        if (recentThreats.status === 'fulfilled' && recentThreats.value.data) {
-          allDetections = [...allDetections, ...recentThreats.value.data];
-          console.log(`Loaded ${recentThreats.value.data.length} recent threats`);
-        }
-
-        // Deduplicate by ID
-        const uniqueDetections = allDetections.filter((detection, index, self) => 
-          index === self.findIndex(d => d.id === detection.id)
-        );
-
-        // Sort by priority: High first, then by threat score, then by timestamp
-        uniqueDetections.sort((a, b) => {
-          if (a.threat_level === 'HIGH' && b.threat_level !== 'HIGH') return -1;
-          if (a.threat_level !== 'HIGH' && b.threat_level === 'HIGH') return 1;
-          if (a.threat_level === 'MEDIUM' && b.threat_level === 'LOW') return -1;
-          if (a.threat_level === 'LOW' && b.threat_level === 'MEDIUM') return 1;
-          return (b.threat_score || 0) - (a.threat_score || 0);
-        });
-
-        console.log(`Total unique detections loaded: ${uniqueDetections.length}`);
-        setDetections(uniqueDetections);
         
       } catch (error) {
-        console.error('Error fetching threats:', error);
+        console.error('💥 Error fetching threats:', error);
+        console.log('🔄 Using fallback threat data...');
+        
         // Enhanced fallback with more realistic critical evidence
         const fallbackThreats = Array.from({ length: 100 }, (_, i) => {
           const isHighPriority = i < 30;
@@ -106,7 +103,7 @@ const ThreatIntelligence = () => {
           return {
             id: `threat_${i}`,
             listing_title: isHighPriority ? 
-              `CRITICAL: ${['Elephant Ivory Tusk Sale', 'Rhino Horn Powder', 'Tiger Bone Medicine'][i % 3]}` :
+              `CRITICAL: ${['Elephant Ivory Tusk Sale', 'Rhino Horn Powder', 'Tiger Bone Medicine', 'Pangolin Scale Trade'][i % 4]}` :
               `Wildlife Product Detection ${i + 1}`,
             platform: ['ebay', 'craigslist', 'olx', 'marketplaats', 'mercadolibre'][i % 5],
             threat_level: isHighPriority ? 'HIGH' : (isMediumPriority ? 'MEDIUM' : 'LOW'),
