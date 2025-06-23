@@ -56,11 +56,12 @@ const useEvidenceData = () => {
           console.error('❌ URL check error:', urlError);
         }
         
-        // THIRD: Get actual evidence data with simplified approach
-        console.log('📁 Fetching evidence records...');
+        // THIRD: Get actual evidence data with simplified approach - ONLY WITH URLs
+        console.log('📁 Fetching evidence records with non-null URLs...');
         const { data: allEvidence, error: allEvidenceError } = await supabase
           .from('detections')
           .select('id, listing_title, platform, threat_level, threat_score, timestamp, listing_price, listing_url, search_term, screenshot_url')
+          .not('listing_url', 'is', null)
           .order('timestamp', { ascending: false })
           .limit(300); // Get more records to ensure we have good evidence
         
@@ -159,9 +160,11 @@ const EvidenceArchive = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterPlatform, setFilterPlatform] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
 
   const filteredEvidence = useMemo(() => {
-    return evidence.filter(item => {
+    const filtered = evidence.filter(item => {
       const searchMatch = searchTerm === '' || 
         item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.platform.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -176,6 +179,10 @@ const EvidenceArchive = () => {
       
       return searchMatch && typeMatch && platformMatch;
     });
+    
+    // Reset to first page when filters change
+    setCurrentPage(1);
+    return filtered;
   }, [evidence, searchTerm, filterType, filterPlatform]);
 
   const evidenceStats = useMemo(() => {
@@ -186,6 +193,14 @@ const EvidenceArchive = () => {
     
     return { totalEvidence, withUrls, withScreenshots, withAnalysis };
   }, [evidence]);
+
+  const paginatedEvidence = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredEvidence.slice(startIndex, endIndex);
+  }, [filteredEvidence, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredEvidence.length / itemsPerPage);
 
   if (loading) {
     return (
@@ -336,8 +351,9 @@ const EvidenceArchive = () => {
         </div>
 
         {filteredEvidence.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-            {filteredEvidence.slice(0, 50).map((item, index) => (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+            {paginatedEvidence.map((item, index) => (
               <motion.div
                 key={item.id}
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -403,6 +419,35 @@ const EvidenceArchive = () => {
                 </div>
               </motion.div>
             ))}
+            </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-700">
+                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredEvidence.length)} of {filteredEvidence.length} results
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-gray-700">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center text-gray-500 py-8 sm:py-12">

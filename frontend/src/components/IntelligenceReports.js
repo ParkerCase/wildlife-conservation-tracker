@@ -648,7 +648,7 @@ const IntelligenceReports = () => {
             <div className="text-sm text-gray-600">Monitoring Schedule</div>
           </div>
           <div className="text-center p-4 bg-green-50 rounded-xl">
-            <div className="text-2xl font-bold text-green-600">15min</div>
+            <div className="text-2xl font-bold text-green-600">Continuous</div>
             <div className="text-sm text-gray-600">Scan Frequency</div>
           </div>
           <div className="text-center p-4 bg-purple-50 rounded-xl">

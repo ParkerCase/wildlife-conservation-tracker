@@ -60,11 +60,12 @@ const ThreatIntelligence = () => {
           console.error('❌ Threat check error:', threatCheckError);
         }
         
-        // THIRD: Try the actual data fetch with simpler approach
-        console.log('🎯 Fetching actual threat data...');
+        // THIRD: Try the actual data fetch with simpler approach - ONLY WITH URLS
+        console.log('🎯 Fetching actual threat data with non-null URLs...');
         const { data: allThreats, error: allThreatsError } = await supabase
           .from('detections')
           .select('id, listing_title, platform, threat_level, threat_score, timestamp, listing_price, listing_url, search_term')
+          .not('listing_url', 'is', null)
           .order('timestamp', { ascending: false })
           .limit(500); // Start with larger but manageable limit
         

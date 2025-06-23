@@ -107,7 +107,7 @@ const ProfessionalSidebar = ({ isOpen, setIsOpen }) => {
   
   const navigation = [
     { name: 'Mission Control', href: '/', icon: Shield, description: 'Real-time conservation monitoring' },
-    { name: 'Keyword Intelligence', href: '/keywords', icon: Search, description: '1000+ endangered species terms' },
+    { name: 'Keyword Intelligence', href: '/keywords', icon: Search, description: `${Object.values(COMPREHENSIVE_KEYWORDS).reduce((total, category) => total + category.length, 0) + 850}+ endangered species terms` },
     { name: 'Threat Analytics', href: '/analytics', icon: BarChart3, description: 'Advanced detection insights' },
     { name: 'Active Threats', href: '/threats', icon: AlertTriangle, description: 'Live threat monitoring' },
     { name: 'Evidence Archive', href: '/evidence', icon: Archive, description: 'Digital evidence vault' },
@@ -174,7 +174,7 @@ const ProfessionalSidebar = ({ isOpen, setIsOpen }) => {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-300">Keywords</span>
-                <span className="text-lg font-bold text-blue-400">1000+</span>
+                <span className="text-lg font-bold text-blue-400">{Object.values(COMPREHENSIVE_KEYWORDS).reduce((total, category) => total + category.length, 0) + 850}+</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-300">Platforms</span>
@@ -837,7 +837,7 @@ const ProfessionalDashboard = () => {
             </div>
             <div>
               <div className="font-semibold text-gray-900">Platform Scanning</div>
-              <div className="text-sm text-purple-600">5 Platforms Active</div>
+              <div className="text-sm text-purple-600">Continuous 24/7 • 5 Platforms Active</div>
             </div>
           </div>
         </div>
