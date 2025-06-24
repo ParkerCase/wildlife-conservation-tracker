@@ -293,7 +293,7 @@ jobs:
         python historical_backfill_scanner.py $START_DAY $END_DAY $KEYWORDS_PER_DAY
     
     - name: Upload backfill results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: backfill-results-period-${{ matrix.time-period }}
         path: |
@@ -307,7 +307,7 @@ jobs:
     
     steps:
     - name: Download all backfill results
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
     
     - name: Generate backfill summary
       run: |
