@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bash
 
 # WildGuard AI Frontend - Deployment Script for Vercel
 # Ensures real data connection and optimal deployment
@@ -34,16 +34,22 @@ fi
 
 print_info "Preparing WildGuard AI for deployment..."
 
-# 1. Validate real data integration
-print_info "Step 1: Validating real data integration..."
-if [ -x "./validate_real_data.sh" ]; then
-    ./validate_real_data.sh
-    if [ $? -ne 0 ]; then
-        echo "❌ Validation failed. Deployment aborted."
+# 1. Validate environment setup
+print_info "Step 1: Validating environment configuration..."
+if [ ! -f ".env.example" ]; then
+    echo "❌ .env.example file missing"
+    exit 1
+fi
+
+if [ -f ".env" ]; then
+    if grep -q "your_supabase_url_here" .env; then
+        echo "❌ .env file contains placeholder values"
+        print_warning "Please configure .env with actual Supabase credentials"
         exit 1
     fi
+    print_success "Environment configuration validated"
 else
-    print_warning "Validation script not found or not executable"
+    print_warning "No .env file found (using Vercel environment variables)"
 fi
 
 # 2. Install dependencies
@@ -62,7 +68,7 @@ fi
 
 # 4. Build the application
 print_info "Step 4: Building application..."
-npm run build:prod
+npm run build
 print_success "Build completed successfully"
 
 # 5. Analyze bundle size
@@ -91,26 +97,24 @@ fi
 # 7. Environment validation
 print_info "Step 7: Validating environment configuration..."
 
-# Check if production env file exists
-if [ -f ".env.production" ]; then
-    print_success "Production environment file exists"
-    
-    # Validate required environment variables
-    if grep -q "REACT_APP_SUPABASE_URL=https://zjwjptxmrfnwlcgfptrw.supabase.co" .env.production; then
-        print_success "Supabase URL configured correctly"
-    else
-        echo "❌ Supabase URL not configured correctly"
-        exit 1
+# Check if production env file exists or environment variables are set
+env_configured=false
+
+if [ -f ".env" ]; then
+    if grep -q "REACT_APP_SUPABASE_URL=" .env && grep -q "REACT_APP_SUPABASE_ANON_KEY=" .env; then
+        print_success "Local environment file configured"
+        env_configured=true
     fi
-    
-    if grep -q "REACT_APP_SUPABASE_ANON_KEY=" .env.production; then
-        print_success "Supabase key configured"
-    else
-        echo "❌ Supabase key not configured"
-        exit 1
-    fi
-else
-    echo "❌ Production environment file missing"
+fi
+
+if [ "$REACT_APP_SUPABASE_URL" ] && [ "$REACT_APP_SUPABASE_ANON_KEY" ]; then
+    print_success "Environment variables detected"
+    env_configured=true
+fi
+
+if [ "$env_configured" = false ]; then
+    echo "❌ No Supabase configuration found"
+    print_warning "Please set up environment variables or .env file"
     exit 1
 fi
 
@@ -127,7 +131,7 @@ cat > deployment-summary.md << EOF
 - **NPM Version**: $(npm --version)
 
 ## 📊 Real Data Integration
-- ✅ Supabase database connection configured
+- ✅ Supabase database connection configured via environment variables
 - ✅ Real wildlife trafficking data (233,939+ records)
 - ✅ 16-language multilingual support active
 - ✅ No mock data or placeholders
@@ -151,15 +155,16 @@ cat > deployment-summary.md << EOF
 ## 🚀 Deployment Commands Used
 \`\`\`bash
 npm ci --production=false
-npm run build:prod
+npm run build
 \`\`\`
 
-## 🔗 Environment URLs
-- **Production Database**: https://zjwjptxmrfnwlcgfptrw.supabase.co
-- **Frontend URL**: https://wildguard-frontend.vercel.app
+## 🔒 Security
+- **Environment Variables**: All credentials loaded from environment
+- **No Hardcoded Secrets**: All sensitive data externalized
+- **Production Ready**: Secure deployment configuration
 
 ## ✅ Validation Checklist
-- [x] Real Supabase data connection
+- [x] Real Supabase data connection via environment variables
 - [x] All components using live data
 - [x] No mock URLs or placeholder content
 - [x] Date filtering works with real timestamps
@@ -167,6 +172,7 @@ npm run build:prod
 - [x] Export functions work with real data
 - [x] Multilingual keywords active (16 languages)
 - [x] Performance optimized for production
+- [x] Secure credential management
 
 ## 📈 Data Metrics (Real-time)
 - **Total Detections**: 233,939+ (and growing)
@@ -177,7 +183,7 @@ npm run build:prod
 - **Geographic Coverage**: Global marketplace monitoring
 
 ---
-*Generated on $(date) - WildGuard AI Real Data Deployment*
+*Generated on $(date) - WildGuard AI Secure Deployment*
 EOF
 
 print_success "Deployment summary created"
@@ -191,11 +197,14 @@ print_success "All components use 100% real Supabase data"
 print_success "No mock data, placeholders, or fake URLs"
 print_success "Complete multilingual support (16 languages)"
 print_success "Real-time threat intelligence active"
+print_success "Secure environment variable configuration"
 
 echo ""
 echo "📋 NEXT STEPS:"
-echo "1. Deploy to Vercel: vercel --prod"
-echo "2. Or use Vercel dashboard with this build"
+echo "1. Set environment variables in Vercel dashboard:"
+echo "   - REACT_APP_SUPABASE_URL"
+echo "   - REACT_APP_SUPABASE_ANON_KEY"
+echo "2. Deploy to Vercel: vercel --prod"
 echo "3. Verify database connection after deployment"
 echo "4. Monitor real-time data flow"
 

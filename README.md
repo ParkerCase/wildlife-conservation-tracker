@@ -65,6 +65,29 @@ WildGuard AI is a comprehensive wildlife trafficking detection system that uses 
 
 ---
 
+## 🔒 **SECURE CONFIGURATION**
+
+### Environment Variables Setup:
+WildGuard AI uses secure environment variables for all credentials. **No secrets are hardcoded.**
+
+```bash
+# Frontend (.env)
+REACT_APP_SUPABASE_URL=https://your-project.supabase.co
+REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+
+# Backend (.env)  
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key_here
+```
+
+**📋 Security Setup:**
+1. Copy environment example files: `cp frontend/.env.example frontend/.env`
+2. Add your actual Supabase credentials (get from Supabase dashboard)
+3. See `SECURITY_SETUP.md` for detailed instructions
+4. Never commit `.env` files to Git
+
+---
+
 ## 🎯 **KEY FEATURES**
 
 ### 🔍 **Real-Time Dashboard**
@@ -96,6 +119,10 @@ WildGuard AI is a comprehensive wildlife trafficking detection system that uses 
 
 ## 🏃‍♂️ **QUICK START**
 
+### Prerequisites:
+1. **Set up environment variables** (see SECURITY_SETUP.md)
+2. **Get Supabase credentials** from your project dashboard
+
 ### One-Command Startup:
 ```bash
 ./start_wildguard.sh
@@ -111,13 +138,15 @@ This automatically starts:
 #### Backend (Python + Supabase):
 ```bash
 cd backend
+# Set up environment variables first (see SECURITY_SETUP.md)
 pip3 install supabase-py flask flask-cors
 python3 real_data_server.py
 ```
 
 #### Frontend (React + Real Data):
 ```bash
-cd frontend
+cd frontend  
+# Set up environment variables first (see SECURITY_SETUP.md)
 npm install
 npm start
 ```
@@ -129,19 +158,31 @@ npm start
 
 ---
 
-## 🗄️ **DATABASE CONNECTION**
+## 🔧 **DEPLOYMENT**
 
-### Supabase Configuration:
-```env
-REACT_APP_SUPABASE_URL=https://zjwjptxmrfnwlcgfptrw.supabase.co
-REACT_APP_SUPABASE_ANON_KEY=[configured]
+### Frontend Deployment (Vercel):
+```bash
+cd frontend
+./deploy_real_data.sh
+vercel --prod
 ```
 
-### Real Tables & Data:
-- **`detections`**: 233,939+ wildlife trafficking detections
-- **`scan_logs`**: Scanner activity logs
-- **`platforms`**: Monitored marketplace data
-- **`species`**: Protected species information
+### Environment Variables (Production):
+Set these in your deployment platform:
+
+**Vercel (Frontend):**
+- `REACT_APP_SUPABASE_URL` = Your Supabase project URL
+- `REACT_APP_SUPABASE_ANON_KEY` = Your Supabase anon key
+- `REACT_APP_ENABLE_MULTILINGUAL` = true
+
+**Backend Hosting:**
+- `SUPABASE_URL` = Your Supabase project URL  
+- `SUPABASE_ANON_KEY` = Your Supabase anon key
+
+### Deployment Verification:
+```bash
+./verify_deployment_ready.sh
+```
 
 ---
 
@@ -168,121 +209,6 @@ REACT_APP_SUPABASE_ANON_KEY=[configured]
 3. **Leopard Skin**: 1,413 detections
 4. **African Elephant**: 1,266 detections
 5. **Cheetah Fur**: 1,248 detections
-
----
-
-## 🔧 **TECHNOLOGY STACK**
-
-### Frontend:
-- **React 18.2** - Modern UI framework
-- **Tailwind CSS** - Responsive styling
-- **Recharts** - Real data visualization
-- **Lucide React** - Modern icons
-- **Supabase Client** - Real-time database connection
-
-### Backend:
-- **Python 3** - Backend API server
-- **Flask** - Web framework
-- **Supabase** - PostgreSQL database
-- **Real-time sync** - Live data updates
-
-### Database:
-- **Supabase (PostgreSQL)** - Production database
-- **Real-time subscriptions** - Live updates
-- **Row-level security** - Data protection
-- **RESTful API** - Standard database access
-
----
-
-## 🌐 **MULTILINGUAL IMPLEMENTATION**
-
-### How It Works:
-1. **Expert Curation**: Native speakers translate key trafficking terms
-2. **Cultural Context**: Understanding regional trafficking patterns  
-3. **Smart Distribution**: 60% English, 40% international languages
-4. **Pattern Recognition**: Detect trafficking code words globally
-5. **Real-time Processing**: Mixed-language keyword batches
-
-### Example Detection:
-```javascript
-// English: "elephant ivory carving"
-// Chinese: "象牙雕刻 私人收藏" 
-// Spanish: "marfil auténtico colección privada"
-// Vietnamese: "ngà voi thật, người mua nghiêm túc"
-```
-
-### Integration Code:
-```python
-# Multilingual keyword batch generation
-def get_multilingual_keyword_batch(self, batch_size=15):
-    keywords = []
-    
-    # 60% English keywords
-    english_count = int(batch_size * 0.6)
-    english_keywords = self.keywords_by_language.get('en', [])
-    keywords.extend(random.sample(english_keywords, english_count))
-    
-    # 40% other languages
-    other_count = batch_size - english_count
-    other_lang_keywords = []
-    for lang_code, lang_keywords in self.keywords_by_language.items():
-        if lang_code != 'en':
-            other_lang_keywords.extend(lang_keywords)
-    
-    keywords.extend(random.sample(other_lang_keywords, other_count))
-    return keywords
-```
-
----
-
-## 📋 **VALIDATION & TESTING**
-
-### Validate Real Data Integration:
-```bash
-cd frontend
-./validate_real_data.sh
-```
-
-### Test Database Connection:
-```bash
-curl http://localhost:5000/api/stats/realtime
-```
-
-### Verify Real URLs:
-1. Open Evidence Archive
-2. Click on any detection
-3. Click "View Original" 
-4. Confirms redirect to actual marketplace listing
-
----
-
-## 🚀 **DEPLOYMENT**
-
-### Frontend Deployment (Vercel):
-```bash
-cd frontend
-./deploy_real_data.sh
-vercel --prod
-```
-
-### Backend Deployment:
-```bash
-cd backend
-# Deploy to your preferred Python hosting platform
-# Ensure Supabase environment variables are configured
-```
-
-### Environment Variables (Production):
-```env
-# Frontend
-REACT_APP_SUPABASE_URL=https://zjwjptxmrfnwlcgfptrw.supabase.co
-REACT_APP_SUPABASE_ANON_KEY=[key]
-REACT_APP_ENABLE_MULTILINGUAL=true
-
-# Backend
-SUPABASE_URL=https://zjwjptxmrfnwlcgfptrw.supabase.co
-SUPABASE_ANON_KEY=[key]
-```
 
 ---
 
@@ -363,6 +289,9 @@ cd frontend && npm run build
 
 # Validate data integration
 cd frontend && ./validate_real_data.sh
+
+# Verify deployment readiness
+./verify_deployment_ready.sh
 ```
 
 ### Log Monitoring:
@@ -394,11 +323,11 @@ cd frontend && ./validate_real_data.sh
    - Authentic evidence archive search
    - Live marketplace URL verification
 
-4. **🔧 Production-Ready Deployment**
-   - Optimized build pipeline
-   - Environment configuration
-   - Health monitoring systems
-   - Validation and testing scripts
+4. **🔒 Secure Production Deployment**
+   - Environment variable configuration
+   - No hardcoded credentials
+   - Security validation scripts
+   - Deployment verification tools
 
 ---
 
@@ -416,6 +345,8 @@ Before using, verify these features work with **real data**:
 - [ ] Multilingual keywords active in 16 languages
 - [ ] No placeholder text or mock data visible
 - [ ] All metrics reflect genuine database statistics
+- [ ] Environment variables properly configured
+- [ ] No hardcoded credentials in source code
 
 ---
 
@@ -434,16 +365,16 @@ Before using, verify these features work with **real data**:
 - **Real-time Analytics** - metrics update with actual data
 
 ### Operational Excellence:
-- **Production Database** - Supabase with row-level security
+- **Production Database** - Supabase with secure environment variables
 - **Automated Deployment** - Validated build and deploy scripts
 - **Health Monitoring** - Real-time system status tracking
-- **Performance Optimized** - Efficient data loading and caching
+- **Security First** - No hardcoded credentials, proper secret management
 
 ---
 
 **🌍 WildGuard AI - Protecting Wildlife Through Intelligent Global Monitoring**
 
-*Built with real data, powered by AI, protecting endangered species worldwide.*
+*Built with real data, powered by AI, secured by design, protecting endangered species worldwide.*
 
 ---
 
@@ -451,5 +382,6 @@ Before using, verify these features work with **real data**:
 **Database Records**: 233,939+ (live count)  
 **Languages Supported**: 16 with expert curation  
 **Data Source**: 100% Real Supabase Production Database  
-**Mock Data**: 0% (completely eliminated)
+**Mock Data**: 0% (completely eliminated)  
+**Security**: Environment variables, no hardcoded secrets
 
