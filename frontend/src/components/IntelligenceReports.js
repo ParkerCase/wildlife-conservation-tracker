@@ -7,9 +7,15 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://hgnefrvllutcagdutcaa.supabase.co';
-const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmVmcnZsbHV0Y2FnZHV0Y2FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkzMjU4NzcsImV4cCI6MjA2NDkwMTg3N30.ftaP4Xa1vTXumTlcPy0OwdG1s-4JSYz10-ENiWB_QZ0';
+// Initialize Supabase - SECURITY: No hardcoded credentials
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+
+// Validate environment variables
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables. Please check your .env file.');
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const AI_ENABLED = process.env.REACT_APP_AI_ENABLED === 'true' || false;
@@ -40,6 +46,7 @@ const useIntelligenceData = () => {
           
         if (countError) {
           console.error('❌ Count query error:', countError);
+          throw countError;
         } else {
           console.log(`✅ Total detections in database: ${totalCount}`);
         }
@@ -53,6 +60,7 @@ const useIntelligenceData = () => {
           
         if (sampleError) {
           console.error('❌ Sample query error:', sampleError);
+          throw sampleError;
         } else {
           console.log(`📈 Sample data retrieved: ${sampleData.length} records`);
           console.log('Sample threat levels:', [...new Set(sampleData.map(d => d.threat_level))]);
@@ -164,59 +172,23 @@ const useIntelligenceData = () => {
           
         } else {
           console.warn('⚠️  No statistics data found');
-          // Use basic fallback but try to keep total count if we got it
-          setData({
-            totalDetections: totalCount || 545940,
-            threatBreakdown: { high: 89000, medium: 245000, low: 211940 },
-            platformStats: { 
-              'ebay': 287000, 
-              'craigslist': 98000, 
-              'olx': 87000,
-              'marketplaats': 45000,
-              'mercadolibre': 28940
-            },
-            averagePrice: 229,
-            totalValue: 125000000,
-            recentTrends: [],
-            topKeywords: []
-          });
+          throw new Error('No data available in database');
         }
 
       } catch (error) {
         console.error('💥 Error fetching intelligence data:', error);
-        console.log('🔄 Using fallback intelligence data...');
-        // Fallback with realistic data based on known 545k+ detections
+        console.log('❌ Cannot load intelligence data without database connection');
+        
+        // Set error state instead of fallback data
         setData({
-          totalDetections: 545940,
-          threatBreakdown: { high: 89000, medium: 245000, low: 211940 },
-          platformStats: { 
-            'ebay': 287000, 
-            'craigslist': 98000, 
-            'olx': 87000,
-            'marketplaats': 45000,
-            'mercadolibre': 28940
-          },
-          averagePrice: 229,
-          totalValue: 125000000,
-          recentTrends: Array.from({ length: 14 }, (_, i) => ({
-            date: new Date(Date.now() - (13 - i) * 86400000).toISOString().split('T')[0],
-            total: 1400 + Math.floor(Math.random() * 200),
-            high: 200 + Math.floor(Math.random() * 50),
-            medium: 600 + Math.floor(Math.random() * 100),
-            low: 600 + Math.floor(Math.random() * 100)
-          })),
-          topKeywords: [
-            { keyword: 'elephant ivory', count: 12450 },
-            { keyword: 'rhino horn', count: 8930 },
-            { keyword: 'tiger bone', count: 7234 },
-            { keyword: 'pangolin scale', count: 6102 },
-            { keyword: 'ivory tusk', count: 5876 },
-            { keyword: 'bear bile', count: 4321 },
-            { keyword: 'turtle shell', count: 3987 },
-            { keyword: 'leopard skin', count: 3456 },
-            { keyword: 'shark fin', count: 2890 },
-            { keyword: 'eagle feather', count: 2567 }
-          ]
+          totalDetections: 0,
+          threatBreakdown: { high: 0, medium: 0, low: 0 },
+          platformStats: {},
+          averagePrice: 0,
+          totalValue: 0,
+          recentTrends: [],
+          topKeywords: [],
+          error: 'Failed to connect to database. Please check your environment configuration.'
         });
       } finally {
         setLoading(false);
@@ -266,6 +238,18 @@ const IntelligenceReports = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  // Show error state if database connection failed
+  if (data.error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 bg-red-50 rounded-2xl border border-red-200">
+        <AlertTriangle className="h-16 w-16 text-red-500 mb-4" />
+        <h3 className="text-xl font-bold text-red-700 mb-2">Database Connection Error</h3>
+        <p className="text-red-600 text-center max-w-md">{data.error}</p>
+        <p className="text-sm text-red-500 mt-2">Please check your environment configuration and try again.</p>
       </div>
     );
   }

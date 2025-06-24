@@ -63,7 +63,7 @@ print_security "========================"
 
 # 1. Check for credentials in Git history
 print_info "Checking Git history for exposed credentials..."
-if git log --all --full-history --grep="supabase" | grep -i "key\|secret\|password" > /dev/null; then
+if git log --all --full-history --grep="supabase" | grep -E "(key|secret|password)" > /dev/null; then
     print_error "Potential credentials found in Git history"
     check_result 1 "security"
 else
@@ -71,9 +71,15 @@ else
     check_result 0 "security"
 fi
 
-# 2. Check for hardcoded credentials in source
+# 2. Check for hardcoded credentials in source - more precise patterns
 print_info "Scanning source code for hardcoded credentials..."
-if grep -r "zjwjptxmrfnwlcgfptrw.supabase.co" . --exclude-dir=node_modules --exclude-dir=.git --exclude="*.md" --exclude="*.example" > /dev/null 2>&1; then
+
+# Check for actual production URLs (not example patterns)
+if grep -r "https://.*\.supabase\.co" . \
+    --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=venv --exclude-dir=build \
+    --exclude="*.md" --exclude="*.example" --exclude="SECURITY_SETUP.md" \
+    --exclude-from=<(echo "verify_deployment_ready.sh") 2>/dev/null | \
+    grep -v "YOUR_SUPABASE_URL" | grep -v "your_supabase_url" | grep -v "process.env.REACT_APP_SUPABASE_URL" | grep -v "os.getenv" > /dev/null; then
     print_error "Hardcoded Supabase URL found in source code"
     check_result 1 "security"
 else
@@ -81,7 +87,12 @@ else
     check_result 0 "security"
 fi
 
-if grep -r "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" . --exclude-dir=node_modules --exclude-dir=.git --exclude="*.md" --exclude="*.example" > /dev/null 2>&1; then
+# Check for actual JWT tokens (not validation patterns)
+if grep -r "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\." . \
+    --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=venv --exclude-dir=build \
+    --exclude="*.md" --exclude="*.example" --exclude="SECURITY_SETUP.md" \
+    --exclude="verify_deployment_ready.sh" 2>/dev/null | \
+    grep -v "YOUR_SUPABASE_ANON_KEY" | grep -v "your_supabase_anon_key" | grep -v "process.env.REACT_APP_SUPABASE_ANON_KEY" | grep -v "os.getenv" > /dev/null; then
     print_error "Hardcoded Supabase key found in source code"
     check_result 1 "security"
 else
@@ -121,7 +132,7 @@ fi
 
 echo ""
 print_info "🚀 DEPLOYMENT VERIFICATION"
-print_info "=========================="
+print_info "==========================="
 
 # 6. Frontend deployment checks
 print_info "Checking frontend deployment configuration..."

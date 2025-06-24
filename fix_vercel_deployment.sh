@@ -1,47 +1,96 @@
 #!/bin/bash
 
-echo "🚨 VERCEL DEPLOYMENT FIX - Complete Reset"
-echo "==========================================="
-echo ""
+echo "🚀 WildGuard AI - Vercel Deployment Fix Script"
+echo "============================================="
 
-# Navigate to the project root (where the frontend is)
-cd /Users/parkercase/conservation-bot
+# Color codes
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-# Add a new commit to force Vercel to rebuild
-echo "⚡ Creating force rebuild trigger..."
-echo "# Force rebuild $(date)" >> README.md
-git add .
-git commit -m "🚀 Force Vercel rebuild - Deploy React app properly"
-git push origin main
+print_info() {
+    echo -e "${BLUE}ℹ️  $1${NC}"
+}
 
+print_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+print_info "Fixing Vercel deployment configuration..."
+
+# Check if we're in the right directory
+if [ ! -d "frontend" ]; then
+    print_error "Must be run from project root directory"
+    exit 1
+fi
+
+cd frontend
+
+# Create or update vercel.json with secure configuration
+print_info "Creating secure vercel.json configuration..."
+
+cat > vercel.json << 'EOL'
+{
+  "version": 2,
+  "name": "wildguard-frontend",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "build"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "REACT_APP_SUPABASE_URL": "@react_app_supabase_url",
+    "REACT_APP_SUPABASE_ANON_KEY": "@react_app_supabase_anon_key",
+    "REACT_APP_ENABLE_MULTILINGUAL": "true",
+    "REACT_APP_ENABLE_REAL_TIME": "true",
+    "REACT_APP_ENABLE_EXPORTS": "true"
+  }
+}
+EOL
+
+print_success "vercel.json created with secure environment variable references"
+
+print_info "Next steps for secure deployment:"
 echo ""
-echo "✅ Forced new commit pushed to GitHub!"
+echo "1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables"
+echo "2. Add these variables:"
 echo ""
-echo "🔧 MANUAL VERCEL STEPS (REQUIRED):"
+echo "   REACT_APP_SUPABASE_URL = YOUR_SUPABASE_URL"
+echo "   REACT_APP_SUPABASE_ANON_KEY = YOUR_SUPABASE_ANON_KEY"
 echo ""
-echo "1. Go to: https://vercel.com/parker-cases-projects/wildlife-conservation-tracker/settings"
+print_warning "SECURITY: Never put real credentials in vercel.json or source code!"
 echo ""
-echo "2. **IMPORTANT**: Change these Build & Development Settings:"
-echo "   Framework Preset: 'Create React App' (NOT Static)"
-echo "   Root Directory: 'frontend' (NOT '.')"
-echo "   Build Command: 'npm run build'"
-echo "   Output Directory: 'build'"
-echo "   Install Command: 'npm install'"
-echo ""
-echo "3. Go to Environment Variables and add:"
-echo "   REACT_APP_SUPABASE_URL = https://hgnefrvllutcagdutcaa.supabase.co"
-echo "   REACT_APP_SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmVmcnZsbHV0Y2FnZHV0Y2FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkzMjU4NzcsImV4cCI6MjA2NDkwMTg3N30.ftaP4Xa1vTXumTlcPy0OwdG1s-4JSYz10-ENiWB_QZ0"
-echo ""
-echo "4. Click 'Save' and then 'Redeploy'"
-echo ""
-echo "5. OR Alternative: Delete the Vercel project and reimport it:"
-echo "   - Delete: https://vercel.com/parker-cases-projects/wildlife-conservation-tracker/settings/advanced"
-echo "   - Reimport: https://vercel.com/new with framework 'Create React App' and root 'frontend'"
-echo ""
-echo "🌐 After fixing, check:"
-echo "   → https://conservatron.vercel.app"
-echo "   → https://conservatron.parkercase.co"
-echo ""
-echo "🔐 Demo Login:"
-echo "   Username: wildguard_admin"
-echo "   Password: ConservationIntelligence2024!"
+echo "3. Get your credentials from Supabase Dashboard → Settings → API"
+echo "4. Redeploy your project to apply the environment variables"
+
+print_success "Vercel deployment configuration fixed securely!"
+
+cd ..
+
+print_info "📖 For detailed setup instructions, see SECURITY_SETUP.md"
