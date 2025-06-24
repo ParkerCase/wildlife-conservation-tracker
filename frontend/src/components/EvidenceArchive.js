@@ -1,621 +1,585 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { 
-  Archive, Search, ExternalLink, Image, FileText, 
-  Camera, Cpu, Copy, X, Download
+import React, { useState, useEffect } from 'react';
+import {
+  Search,
+  Filter,
+  Download,
+  Eye,
+  ExternalLink,
+  Calendar,
+  MapPin,
+  AlertTriangle,
+  Shield,
+  Database,
+  FileText,
+  Image,
+  Link,
+  Clock
 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import WildGuardDataService from '../services/supabaseService';
 
-// Initialize Supabase
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://hgnefrvllutcagdutcaa.supabase.co';
-const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmVmcnZsbHV0Y2FnZHV0Y2FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkzMjU4NzcsImV4cCI6MjA2NDkwMTg3N30.ftaP4Xa1vTXumTlcPy0OwdG1s-4JSYz10-ENiWB_QZ0';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-const AI_ENABLED = process.env.REACT_APP_AI_ENABLED === 'true' || false;
-
-const MONITORED_PLATFORMS = [
-  { name: 'eBay', region: 'Global', color: 'blue' },
-  { name: 'Marketplaats', region: 'Netherlands', color: 'green' },
-  { name: 'MercadoLibre', region: 'Latin America', color: 'orange' },
-  { name: 'OLX', region: 'Global', color: 'purple' },
-  { name: 'Craigslist', region: 'US/Canada', color: 'red' }
-];
-
-// Hook for evidence data - FIXED to show real data
-const useEvidenceData = () => {
-  const [evidence, setEvidence] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchEvidence = async () => {
-      try {
-        console.log('🔍 EvidenceArchive: Starting evidence data fetch...');
-        
-        // FIRST: Test basic database connection
-        console.log('⏰ Testing basic database query...');
-        const { data: testQuery, error: testError } = await supabase
-          .from('detections')
-          .select('id, listing_title, platform, listing_url')
-          .limit(3);
-        
-        console.log('🧪 Test query - Sample records:', testQuery);
-        if (testError) {
-          console.error('❌ Test query error:', testError);
-        }
-        
-        // SECOND: Check how many records have URLs (important for evidence)
-        console.log('🔗 Checking URL availability...');
-        const { data: urlCheck, error: urlError } = await supabase
-          .from('detections')
-          .select('listing_url')
-          .not('listing_url', 'is', null)
-          .limit(10);
-        
-        console.log(`🔗 Found ${urlCheck?.length || 0} records with URLs:`, urlCheck?.map(d => d.listing_url?.slice(0, 50)));
-        if (urlError) {
-          console.error('❌ URL check error:', urlError);
-        }
-        
-        // THIRD: Get actual evidence data with simplified approach - ONLY WITH URLs
-        console.log('📁 Fetching evidence records with non-null URLs...');
-        const { data: allEvidence, error: allEvidenceError } = await supabase
-          .from('detections')
-          .select('id, listing_title, platform, threat_level, threat_score, timestamp, listing_price, listing_url, search_term, screenshot_url')
-          .not('listing_url', 'is', null)
-          .order('timestamp', { ascending: false })
-          .limit(300); // Get more records to ensure we have good evidence
-        
-        if (allEvidenceError) {
-          console.error('❌ Evidence query error:', allEvidenceError);
-          throw allEvidenceError;
-        }
-        
-        console.log(`✅ Successfully fetched ${allEvidence?.length || 0} evidence records`);
-        
-        if (allEvidence && allEvidence.length > 0) {
-          // Transform data to include evidence metadata
-          const evidenceData = allEvidence.map(detection => ({
-            id: detection.id,
-            threat_id: detection.id,
-            title: detection.listing_title || 'Wildlife Product Detection',
-            platform: detection.platform,
-            url: detection.listing_url,
-            screenshot_url: detection.screenshot_url,
-            search_term: detection.search_term,
-            threat_level: detection.threat_level,
-            threat_score: detection.threat_score,
-            timestamp: detection.timestamp,
-            listing_price: detection.listing_price,
-            evidence_type: detection.listing_url ? 'url' : 'detection',
-            file_size: detection.screenshot_url ? '2.4 MB' : null,
-            file_type: detection.screenshot_url ? 'image/png' : null,
-            has_screenshot: Boolean(detection.screenshot_url),
-            has_analysis: Boolean(detection.threat_score)
-          }));
-
-          // Sort by priority: High threats first, then by threat score, then by timestamp
-          evidenceData.sort((a, b) => {
-            if (a.threat_level?.toLowerCase() === 'high' && b.threat_level?.toLowerCase() !== 'high') return -1;
-            if (a.threat_level?.toLowerCase() !== 'high' && b.threat_level?.toLowerCase() === 'high') return 1;
-            if (a.threat_level?.toLowerCase() === 'medium' && b.threat_level?.toLowerCase() === 'low') return -1;
-            if (a.threat_level?.toLowerCase() === 'low' && b.threat_level?.toLowerCase() === 'medium') return 1;
-            return (b.threat_score || 0) - (a.threat_score || 0);
-          });
-
-          console.log(`📈 Evidence breakdown by threat level:`);
-          const highEvidence = evidenceData.filter(e => e.threat_level?.toLowerCase() === 'high');
-          const mediumEvidence = evidenceData.filter(e => e.threat_level?.toLowerCase() === 'medium');
-          const lowEvidence = evidenceData.filter(e => e.threat_level?.toLowerCase() === 'low');
-          console.log(`  High: ${highEvidence.length}, Medium: ${mediumEvidence.length}, Low: ${lowEvidence.length}`);
-          
-          const withUrls = evidenceData.filter(e => e.url);
-          console.log(`🔗 Evidence with URLs: ${withUrls.length}/${evidenceData.length}`);
-          
-          setEvidence(evidenceData);
-        } else {
-          console.warn('⚠️  No evidence data found in database');
-          setEvidence([]);
-        }
-        
-      } catch (error) {
-        console.error('Error fetching evidence:', error);
-        // Enhanced fallback with more realistic critical evidence
-        const fallbackEvidence = Array.from({ length: 300 }, (_, i) => {
-          const isHighPriority = i < 80;
-          const isMediumPriority = i < 200;
-          return {
-            id: `evidence_${i}`,
-            threat_id: `THREAT_${i.toString().padStart(6, '0')}`,
-            title: isHighPriority ? 
-              `CRITICAL: ${['Elephant Ivory Tusk Sale', 'Rhino Horn Powder', 'Tiger Bone Medicine', 'Pangolin Scale Trade', 'Bear Bile Products'][i % 5]}` :
-              `Wildlife Product Detection ${i + 1}`,
-            platform: ['ebay', 'craigslist', 'olx', 'marketplaats', 'mercadolibre'][i % 5],
-            url: `https://example.com/listing/${i}`,
-            threat_level: isHighPriority ? 'HIGH' : (isMediumPriority ? 'MEDIUM' : 'LOW'),
-            threat_score: isHighPriority ? 85 + (i % 15) : (isMediumPriority ? 50 + (i % 35) : 20 + (i % 30)),
-            timestamp: new Date(Date.now() - i * 3600000).toISOString(),
-            listing_price: isHighPriority ? 500 + (i * 100) : 50 + (i * 10),
-            search_term: ['elephant ivory', 'rhino horn', 'tiger bone', 'pangolin scale', 'bear bile'][i % 5],
-            evidence_type: 'url',
-            has_screenshot: i % 3 === 0,
-            has_analysis: true
-          };
-        });
-        setEvidence(fallbackEvidence);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEvidence();
-  }, []);
-
-  return { evidence, loading };
-};
-
-// Evidence Archive with REAL Supabase integration - FIXED
 const EvidenceArchive = () => {
-  const { evidence, loading } = useEvidenceData();
+  const [evidence, setEvidence] = useState([]);
+  const [filteredEvidence, setFilteredEvidence] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedEvidence, setSelectedEvidence] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [filterPlatform, setFilterPlatform] = useState('all');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const [filters, setFilters] = useState({
+    platform: '',
+    threatLevel: '',
+    dateFrom: '',
+    dateTo: '',
+    hasUrl: false,
+    alertSent: false
+  });
+  const [platforms, setPlatforms] = useState([]);
+  const [stats, setStats] = useState({});
 
-  const filteredEvidence = useMemo(() => {
-    const filtered = evidence.filter(item => {
-      const searchMatch = searchTerm === '' || 
-        item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.platform.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.search_term && item.search_term.toLowerCase().includes(searchTerm.toLowerCase()));
+  useEffect(() => {
+    loadEvidenceData();
+  }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [evidence, filters, searchTerm]);
+
+  const loadEvidenceData = async () => {
+    setIsLoading(true);
+    try {
+      // Load recent evidence with comprehensive data
+      const result = await WildGuardDataService.searchEvidence('', {}, 200);
       
-      const typeMatch = filterType === 'all' || 
-        (filterType === 'url' && item.url) ||
-        (filterType === 'screenshot' && item.has_screenshot) ||
-        (filterType === 'analysis' && item.has_analysis);
-      
-      const platformMatch = filterPlatform === 'all' || item.platform === filterPlatform;
-      
-      return searchMatch && typeMatch && platformMatch;
-    });
+      if (result.success) {
+        setEvidence(result.data);
+        
+        // Extract unique platforms
+        const uniquePlatforms = [...new Set(result.data.map(item => item.platform).filter(Boolean))];
+        setPlatforms(uniquePlatforms);
+        
+        // Calculate stats
+        calculateStats(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading evidence:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const calculateStats = (data) => {
+    const stats = {
+      total: data.length,
+      withUrls: data.filter(item => item.listing_url).length,
+      highThreat: data.filter(item => ['HIGH', 'CRITICAL'].includes(item.threat_level)).length,
+      alertsSent: data.filter(item => item.alert_sent).length,
+      platforms: [...new Set(data.map(item => item.platform).filter(Boolean))].length,
+      avgThreatScore: data.reduce((sum, item) => sum + (item.threat_score || 0), 0) / data.length
+    };
+    setStats(stats);
+  };
+
+  const applyFilters = () => {
+    let filtered = [...evidence];
+
+    // Text search
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(item =>
+        item.listing_title?.toLowerCase().includes(searchLower) ||
+        item.search_term?.toLowerCase().includes(searchLower) ||
+        item.species_involved?.toLowerCase().includes(searchLower) ||
+        item.evidence_id?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Platform filter
+    if (filters.platform) {
+      filtered = filtered.filter(item => item.platform === filters.platform);
+    }
+
+    // Threat level filter
+    if (filters.threatLevel) {
+      filtered = filtered.filter(item => item.threat_level === filters.threatLevel);
+    }
+
+    // Date filters
+    if (filters.dateFrom) {
+      filtered = filtered.filter(item => 
+        new Date(item.timestamp) >= new Date(filters.dateFrom)
+      );
+    }
+
+    if (filters.dateTo) {
+      filtered = filtered.filter(item => 
+        new Date(item.timestamp) <= new Date(filters.dateTo + 'T23:59:59')
+      );
+    }
+
+    // Has URL filter
+    if (filters.hasUrl) {
+      filtered = filtered.filter(item => item.listing_url);
+    }
+
+    // Alert sent filter
+    if (filters.alertSent) {
+      filtered = filtered.filter(item => item.alert_sent);
+    }
+
+    setFilteredEvidence(filtered);
+  };
+
+  const handleSearch = (term) => {
+    setSearchTerm(term);
+  };
+
+  const handleAdvancedSearch = async () => {
+    if (!searchTerm.trim()) return;
     
-    // Reset to first page when filters change
-    setCurrentPage(1);
-    return filtered;
-  }, [evidence, searchTerm, filterType, filterPlatform]);
+    setIsLoading(true);
+    try {
+      const result = await WildGuardDataService.searchEvidence(searchTerm, filters, 100);
+      if (result.success) {
+        setFilteredEvidence(result.data);
+      }
+    } catch (error) {
+      console.error('Error performing advanced search:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const evidenceStats = useMemo(() => {
-    const totalEvidence = evidence.length;
-    const withUrls = evidence.filter(e => e.url).length;
-    const withScreenshots = evidence.filter(e => e.has_screenshot).length;
-    const withAnalysis = evidence.filter(e => e.has_analysis).length;
-    
-    return { totalEvidence, withUrls, withScreenshots, withAnalysis };
-  }, [evidence]);
+  const exportEvidence = () => {
+    const csvContent = [
+      [
+        'Evidence ID', 'Timestamp', 'Platform', 'Threat Level', 'Threat Score',
+        'Species', 'Listing Title', 'Listing Price', 'Listing URL', 'Alert Sent', 'Status'
+      ],
+      ...filteredEvidence.map(item => [
+        item.evidence_id,
+        item.timestamp,
+        item.platform,
+        item.threat_level,
+        item.threat_score,
+        item.search_term,
+        item.listing_title,
+        item.listing_price,
+        item.listing_url,
+        item.alert_sent,
+        item.status
+      ])
+    ].map(row => row.map(cell => `"${cell || ''}"`).join(',')).join('\n');
 
-  const paginatedEvidence = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return filteredEvidence.slice(startIndex, endIndex);
-  }, [filteredEvidence, currentPage, itemsPerPage]);
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `wildguard-evidence-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
-  const totalPages = Math.ceil(filteredEvidence.length / itemsPerPage);
+  const getSeverityColor = (level) => {
+    switch (level) {
+      case 'CRITICAL': return 'bg-red-100 text-red-800 border-red-200';
+      case 'HIGH': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'MEDIUM': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'LOW': return 'bg-blue-100 text-blue-800 border-blue-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
 
-  if (loading) {
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleString();
+  };
+
+  if (isLoading && evidence.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading evidence archive from Supabase...</span>
       </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-4 sm:space-y-6 lg:space-y-8"
-    >
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 mb-2">
-            Digital Evidence Vault
-          </h1>
-          <p className="text-lg sm:text-xl text-gray-600">
-            Comprehensive evidence archive from live detection system
-          </p>
-          {!AI_ENABLED && (
-            <div className="mt-2 px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-sm font-medium inline-block">
-              ⚡ Evidence collection in Free Mode
+    <div className="space-y-6">
+      {/* Header with Statistics */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+              <Database size={28} className="text-blue-600 mr-3" />
+              Evidence Archive
+            </h2>
+            <p className="text-gray-600 mt-1">
+              Comprehensive database of {stats.total?.toLocaleString() || 0} wildlife trafficking detections
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-bold text-blue-600">{stats.total?.toLocaleString() || 0}</p>
+              <p className="text-sm text-gray-600">Total Records</p>
             </div>
-          )}
+            <div>
+              <p className="text-2xl font-bold text-red-600">{stats.highThreat || 0}</p>
+              <p className="text-sm text-gray-600">High Threat</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-green-600">{stats.withUrls || 0}</p>
+              <p className="text-sm text-gray-600">With URLs</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-purple-600">{stats.platforms || 0}</p>
+              <p className="text-sm text-gray-600">Platforms</p>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 mt-4 lg:mt-0">
-          <div className="relative">
-            <Search size={18} className="sm:hidden absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <Search size={20} className="hidden sm:block absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+
+        {/* Search and Filters */}
+        <div className="space-y-4">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search evidence... (listing titles, species, evidence IDs)"
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAdvancedSearch()}
+                className="pl-10 pr-4 py-3 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <button
+              onClick={handleAdvancedSearch}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+            >
+              <Search size={16} className="mr-2" />
+              Search
+            </button>
+            <button
+              onClick={exportEvidence}
+              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center"
+            >
+              <Download size={16} className="mr-2" />
+              Export
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            <select
+              value={filters.platform}
+              onChange={(e) => setFilters(prev => ({ ...prev, platform: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Platforms</option>
+              {platforms.map(platform => (
+                <option key={platform} value={platform}>{platform}</option>
+              ))}
+            </select>
+
+            <select
+              value={filters.threatLevel}
+              onChange={(e) => setFilters(prev => ({ ...prev, threatLevel: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Threat Levels</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
+              <option value="UNRATED">Unrated</option>
+            </select>
+
             <input
-              type="text"
-              placeholder="Search evidence..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 sm:pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-64"
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => setFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="From Date"
             />
+
+            <input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => setFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="To Date"
+            />
+
+            <label className="flex items-center px-3 py-2 border border-gray-300 rounded-lg">
+              <input
+                type="checkbox"
+                checked={filters.hasUrl}
+                onChange={(e) => setFilters(prev => ({ ...prev, hasUrl: e.target.checked }))}
+                className="mr-2"
+              />
+              <span className="text-sm">Has URL</span>
+            </label>
+
+            <label className="flex items-center px-3 py-2 border border-gray-300 rounded-lg">
+              <input
+                type="checkbox"
+                checked={filters.alertSent}
+                onChange={(e) => setFilters(prev => ({ ...prev, alertSent: e.target.checked }))}
+                className="mr-2"
+              />
+              <span className="text-sm">Alert Sent</span>
+            </label>
           </div>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="bg-white border border-gray-300 rounded-xl px-4 py-2 text-sm font-medium w-full sm:w-auto"
-          >
-            <option value="all">All Types</option>
-            <option value="url">URLs</option>
-            <option value="screenshot">Screenshots</option>
-            <option value="analysis">AI Analysis</option>
-          </select>
-          <select
-            value={filterPlatform}
-            onChange={(e) => setFilterPlatform(e.target.value)}
-            className="bg-white border border-gray-300 rounded-xl px-4 py-2 text-sm font-medium w-full sm:w-auto"
-          >
-            <option value="all">All Platforms</option>
-            {MONITORED_PLATFORMS.map(platform => (
-              <option key={platform.name} value={platform.name.toLowerCase()}>{platform.name}</option>
-            ))}
-          </select>
+
+          <div className="text-sm text-gray-600">
+            Showing {filteredEvidence.length.toLocaleString()} of {evidence.length.toLocaleString()} records
+            {(filters.dateFrom || filters.dateTo) && ' (filtered by date)'}
+          </div>
         </div>
-      </div>
-
-      {/* Evidence Statistics - FIXED TO SHOW REAL NUMBERS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 sm:p-6 text-white"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <Archive size={24} className="sm:hidden" />
-            <Archive size={28} className="hidden sm:block" />
-            <div className="text-right">
-              <div className="text-2xl sm:text-3xl font-bold">{evidenceStats.totalEvidence}</div>
-              <div className="text-blue-100 text-xs sm:text-sm">Total Evidence</div>
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-4 sm:p-6 text-white"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <ExternalLink size={24} className="sm:hidden" />
-            <ExternalLink size={28} className="hidden sm:block" />
-            <div className="text-right">
-              <div className="text-2xl sm:text-3xl font-bold">{evidenceStats.withUrls}</div>
-              <div className="text-green-100 text-xs sm:text-sm">Source URLs</div>
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-4 sm:p-6 text-white"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <Camera size={24} className="sm:hidden" />
-            <Camera size={28} className="hidden sm:block" />
-            <div className="text-right">
-              <div className="text-2xl sm:text-3xl font-bold">{evidenceStats.withScreenshots}</div>
-              <div className="text-purple-100 text-xs sm:text-sm">Screenshots</div>
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 sm:p-6 text-white"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <Cpu size={24} className="sm:hidden" />
-            <Cpu size={28} className="hidden sm:block" />
-            <div className="text-right">
-              <div className="text-2xl sm:text-3xl font-bold">{evidenceStats.withAnalysis}</div>
-              <div className="text-orange-100 text-xs sm:text-sm">{AI_ENABLED ? 'AI Analysis' : 'Rule Analysis'}</div>
-            </div>
-          </div>
-        </motion.div>
       </div>
 
       {/* Evidence Grid */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl p-4 sm:p-6 lg:p-8 border border-gray-100"
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
-          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-0">
-            Evidence Collection ({filteredEvidence.length})
-          </h3>
-          <div className="flex items-center space-x-2">
-            <button className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm">
-              <Download size={16} />
-              <span className="hidden sm:inline">Export All</span>
-            </button>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredEvidence.map((item, index) => (
+          <div
+            key={item.id || index}
+            className="bg-white rounded-xl shadow-lg border hover:shadow-xl transition-shadow cursor-pointer"
+            onClick={() => setSelectedEvidence(item)}
+          >
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center">
+                  <FileText size={20} className="text-blue-500 mr-2" />
+                  <span className="font-mono text-xs text-gray-600">
+                    {item.evidence_id?.substring(0, 25)}...
+                  </span>
+                </div>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getSeverityColor(item.threat_level)}`}>
+                  {item.threat_level}
+                </span>
+              </div>
 
-        {filteredEvidence.length > 0 ? (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-            {paginatedEvidence.map((item, index) => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => setSelectedEvidence(item)}
-                className="bg-gray-50 rounded-xl p-4 hover:bg-gray-100 cursor-pointer transition-all group"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                    item.has_screenshot ? 'bg-purple-100' :
-                    item.url ? 'bg-green-100' : 'bg-blue-100'
-                  }`}>
-                    {item.has_screenshot ? (
-                      <Image size={20} className="text-purple-600" />
-                    ) : item.url ? (
-                      <ExternalLink size={20} className="text-green-600" />
-                    ) : (
-                      <FileText size={20} className="text-blue-600" />
-                    )}
-                  </div>
-                  <div className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                    item.threat_level?.toLowerCase() === 'high' ? 'bg-red-100 text-red-700' :
-                    item.threat_level?.toLowerCase() === 'medium' ? 'bg-orange-100 text-orange-700' :
-                    'bg-yellow-100 text-yellow-700'
-                  }`}>
-                    {(item.threat_level || 'medium').toUpperCase()}
-                  </div>
+              {/* Content */}
+              <div className="space-y-3">
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-1">
+                    {item.search_term || 'Detection'}
+                  </h3>
+                  {item.listing_title && (
+                    <p className="text-sm text-gray-600 line-clamp-2">
+                      {item.listing_title}
+                    </p>
+                  )}
                 </div>
 
-                <h4 className="font-semibold text-sm text-gray-900 mb-2 line-clamp-2">
-                  {item.title}
-                </h4>
-
-                <div className="space-y-1 mb-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">Platform</span>
-                    <span className="text-xs font-medium text-gray-700 capitalize">{item.platform}</span>
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                  <div className="flex items-center">
+                    <MapPin size={14} className="mr-1" />
+                    <span className="capitalize">{item.platform}</span>
                   </div>
                   {item.threat_score && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">Score</span>
-                      <span className="text-xs font-medium text-blue-600">{item.threat_score}</span>
-                    </div>
-                  )}
-                  {item.listing_price && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">Price</span>
-                      <span className="text-xs font-medium text-green-600">${parseFloat(item.listing_price).toFixed(2)}</span>
+                    <div className="flex items-center">
+                      <Shield size={14} className="mr-1" />
+                      <span>{item.threat_score}</span>
                     </div>
                   )}
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">
-                    {new Date(item.timestamp).toLocaleDateString()}
-                  </span>
-                  <div className="flex items-center space-x-1">
-                    {item.url && <ExternalLink size={12} className="text-green-500" />}
-                    {item.has_screenshot && <Image size={12} className="text-purple-500" />}
-                    {item.has_analysis && <Cpu size={12} className="text-orange-500" />}
+                <div className="flex items-center text-sm text-gray-600">
+                  <Clock size={14} className="mr-1" />
+                  <span>{formatDate(item.timestamp)}</span>
+                </div>
+
+                {item.listing_price && (
+                  <div className="text-lg font-semibold text-green-600">
+                    ${item.listing_price}
                   </div>
-                </div>
-              </motion.div>
-            ))}
-            </div>
-            
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-700">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredEvidence.length)} of {filteredEvidence.length} results
-                </div>
+                )}
+
+                {/* Status Indicators */}
                 <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Previous
-                  </button>
-                  <span className="text-sm text-gray-700">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
+                  {item.listing_url && (
+                    <span className="inline-flex items-center text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      <Link size={10} className="mr-1" />
+                      URL
+                    </span>
+                  )}
+                  {item.alert_sent && (
+                    <span className="inline-flex items-center text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                      <AlertTriangle size={10} className="mr-1" />
+                      Alert Sent
+                    </span>
+                  )}
                 </div>
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="text-center text-gray-500 py-8 sm:py-12">
-            <Archive size={48} className="mx-auto mb-4 text-gray-300" />
-            <p className="text-lg font-medium mb-2">No evidence found</p>
-            <p className="text-sm">Try adjusting your search or filters</p>
-          </div>
-        )}
-      </motion.div>
 
-      {/* Evidence Detail Modal */}
-      {selectedEvidence && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedEvidence(null)}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-2xl p-4 sm:p-6 lg:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4 sm:mb-6">
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-900">Evidence Details</h3>
-              <div className="flex items-center space-x-2">
+              {/* Actions */}
+              <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(JSON.stringify(selectedEvidence, null, 2));
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedEvidence(item);
                   }}
-                  className="p-2 hover:bg-gray-100 rounded-xl"
-                  title="Copy Evidence Data"
+                  className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
                 >
-                  <Copy size={20} />
+                  <Eye size={14} className="mr-1" />
+                  Details
                 </button>
+                
+                {item.listing_url && (
+                  <a
+                    href={item.listing_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
+                  >
+                    <ExternalLink size={14} className="mr-1" />
+                    View Original
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {filteredEvidence.length === 0 && !isLoading && (
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+          <Database size={48} className="text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Evidence Found</h3>
+          <p className="text-gray-600">
+            {searchTerm || Object.values(filters).some(f => f)
+              ? 'Try adjusting your search terms or filters to see more results.'
+              : 'No evidence records available in the database.'}
+          </p>
+        </div>
+      )}
+
+      {/* Evidence Details Modal */}
+      {selectedEvidence && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-6">
+                <h3 className="text-xl font-bold text-gray-900">Evidence Details</h3>
                 <button
                   onClick={() => setSelectedEvidence(null)}
-                  className="p-2 hover:bg-gray-100 rounded-xl"
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
                 >
-                  <X size={20} className="sm:hidden" />
-                  <X size={24} className="hidden sm:block" />
+                  ×
                 </button>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Evidence Information */}
-              <div className="space-y-6">
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3">Detection Information</h4>
-                  <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Threat ID:</span>
-                      <span className="text-sm font-mono">{selectedEvidence.threat_id}</span>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left Column */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Evidence ID</label>
+                    <p className="font-mono text-sm bg-gray-50 p-2 rounded">
+                      {selectedEvidence.evidence_id}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Detection Time</label>
+                    <p className="text-gray-900">{formatDate(selectedEvidence.timestamp)}</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Platform</label>
+                      <p className="capitalize">{selectedEvidence.platform}</p>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Platform:</span>
-                      <span className="text-sm font-medium capitalize">{selectedEvidence.platform}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Threat Level:</span>
-                      <span className={`text-sm px-2 py-1 rounded ${
-                        selectedEvidence.threat_level?.toLowerCase() === 'high' ? 'bg-red-100 text-red-700' :
-                        selectedEvidence.threat_level?.toLowerCase() === 'medium' ? 'bg-orange-100 text-orange-700' :
-                        'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {(selectedEvidence.threat_level || 'medium').toUpperCase()}
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Threat Level</label>
+                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getSeverityColor(selectedEvidence.threat_level)}`}>
+                        {selectedEvidence.threat_level}
                       </span>
                     </div>
-                    {selectedEvidence.threat_score && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Threat Score:</span>
-                        <span className="text-sm font-medium text-blue-600">
-                          {selectedEvidence.threat_score}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Detected:</span>
-                      <span className="text-sm">{new Date(selectedEvidence.timestamp).toLocaleString()}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Threat Score</label>
+                      <p className="text-2xl font-bold text-red-600">
+                        {selectedEvidence.threat_score || 'N/A'}
+                      </p>
                     </div>
-                    {selectedEvidence.search_term && (
+                    {selectedEvidence.listing_price && (
                       <div>
-                        <span className="text-sm text-gray-600">Search Term:</span>
-                        <div className="mt-1">
-                          <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs">
-                            {selectedEvidence.search_term}
-                          </span>
-                        </div>
+                        <label className="text-sm font-medium text-gray-700">Listing Price</label>
+                        <p className="text-2xl font-bold text-green-600">
+                          ${selectedEvidence.listing_price}
+                        </p>
                       </div>
                     )}
                   </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Species/Search Term</label>
+                    <p className="text-gray-900">{selectedEvidence.search_term}</p>
+                  </div>
+
+                  {selectedEvidence.species_involved && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Species Involved</label>
+                      <p className="text-gray-900">{selectedEvidence.species_involved}</p>
+                    </div>
+                  )}
                 </div>
 
-                {selectedEvidence.url && (
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-3">Source URL</h4>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <div className="flex items-start space-x-3">
-                        <ExternalLink size={20} className="text-green-600 mt-1 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <a
-                            href={selectedEvidence.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-700 font-medium text-sm break-all"
-                          >
-                            {selectedEvidence.url}
-                          </a>
-                        </div>
-                      </div>
+                {/* Right Column */}
+                <div className="space-y-4">
+                  {selectedEvidence.listing_title && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Listing Title</label>
+                      <p className="text-gray-900 bg-gray-50 p-3 rounded">
+                        {selectedEvidence.listing_title}
+                      </p>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
 
-              {/* Evidence Files */}
-              <div className="space-y-6">
-                {selectedEvidence.has_screenshot && (
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-3">Screenshot Evidence</h4>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <div className="flex items-center space-x-3 mb-3">
-                        <Image size={20} className="text-purple-600" />
-                        <div>
-                          <div className="font-medium text-sm">Screenshot</div>
-                          <div className="text-xs text-gray-500">
-                            {selectedEvidence.file_size || '2.4 MB'} • {selectedEvidence.file_type || 'image/png'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="w-full h-48 bg-gray-200 rounded-lg border border-gray-200 flex items-center justify-center">
-                        <div className="text-center text-gray-500">
-                          <Camera size={32} className="mx-auto mb-2" />
-                          <div className="text-sm">Screenshot available</div>
-                        </div>
-                      </div>
+                  {selectedEvidence.listing_url && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Original Listing</label>
+                      <a
+                        href={selectedEvidence.listing_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 flex items-center break-all"
+                      >
+                        View Original Listing <ExternalLink size={16} className="ml-2 flex-shrink-0" />
+                      </a>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {selectedEvidence.has_analysis && (
                   <div>
-                    <h4 className="font-semibold text-gray-900 mb-3">{AI_ENABLED ? 'AI Analysis' : 'Rule-Based Analysis'}</h4>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <div className="flex items-center space-x-2 mb-3">
-                        <Cpu size={20} className="text-orange-600" />
-                        <span className="font-medium text-sm">Analysis Results</span>
-                      </div>
-                      <div className="text-xs text-gray-700">
-                        {AI_ENABLED ? (
-                          `AI analysis completed with threat score: ${selectedEvidence.threat_score}. ` +
-                          `Detection confidence based on keyword matching and content analysis.`
-                        ) : (
-                          `Rule-based analysis completed with threat score: ${selectedEvidence.threat_score}. ` +
-                          `Score based on keyword matching, pricing patterns, and platform risk factors.`
+                    <label className="text-sm font-medium text-gray-700">Status</label>
+                    <div className="space-y-2">
+                      <p className="text-gray-900">{selectedEvidence.status}</p>
+                      <div className="flex space-x-2">
+                        {selectedEvidence.alert_sent && (
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
+                            Alert Sent
+                          </span>
                         )}
                       </div>
                     </div>
                   </div>
-                )}
+
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-blue-900 mb-2">Detection Metadata</h4>
+                    <div className="text-sm space-y-1">
+                      <p><strong>Database ID:</strong> {selectedEvidence.id}</p>
+                      <p><strong>Detection Type:</strong> {selectedEvidence.status}</p>
+                      <p><strong>Data Source:</strong> Real Supabase Database</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

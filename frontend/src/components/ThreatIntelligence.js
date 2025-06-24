@@ -1,379 +1,463 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
 import { 
-  AlertTriangle, X, Archive, ExternalLink, Image, 
-  FileText, Camera, Cpu, Copy, CheckCircle, Download,
-  BarChart3, Shield, Target, Globe, DollarSign
+  AlertTriangle, 
+  Shield, 
+  Clock, 
+  ExternalLink, 
+  Eye, 
+  Filter,
+  Download,
+  Search,
+  MapPin,
+  Calendar
 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import WildGuardDataService from '../services/supabaseService';
 
-// Initialize Supabase
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://hgnefrvllutcagdutcaa.supabase.co';
-const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhnbmVmcnZsbHV0Y2FnZHV0Y2FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkzMjU4NzcsImV4cCI6MjA2NDkwMTg3N30.ftaP4Xa1vTXumTlcPy0OwdG1s-4JSYz10-ENiWB_QZ0';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-const AI_ENABLED = process.env.REACT_APP_AI_ENABLED === 'true' || false;
-
-const MONITORED_PLATFORMS = [
-  { name: 'eBay', region: 'Global', color: 'blue' },
-  { name: 'Marketplaats', region: 'Netherlands', color: 'green' },
-  { name: 'MercadoLibre', region: 'Latin America', color: 'orange' },
-  { name: 'OLX', region: 'Global', color: 'purple' },
-  { name: 'Craigslist', region: 'US/Canada', color: 'red' }
-];
-
-// FIXED Threat Intelligence with real data from 550k detections
 const ThreatIntelligence = () => {
-  const [detections, setDetections] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedThreat, setSelectedThreat] = useState(null);
-  const [filterLevel, setFilterLevel] = useState('all');
-  const [filterPlatform, setFilterPlatform] = useState('all');
+  const [alerts, setAlerts] = useState([]);
+  const [filteredAlerts, setFilteredAlerts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedAlert, setSelectedAlert] = useState(null);
+  const [filters, setFilters] = useState({
+    severity: '',
+    platform: '',
+    dateRange: '7d',
+    searchTerm: ''
+  });
+  const [platforms, setPlatforms] = useState([]);
 
   useEffect(() => {
-    const fetchThreats = async () => {
-      try {
-        console.log('🔍 ThreatIntelligence: Starting threat data fetch...');
-        
-        // FIRST: Try a simple query to see what's actually in the database
-        console.log('⏰ Testing basic query first...');
-        const { data: testQuery, error: testError } = await supabase
-          .from('detections')
-          .select('id, listing_title, platform, threat_level')
-          .limit(5);
-        
-        console.log('🧪 Test query results:', testQuery);
-        if (testError) {
-          console.error('❌ Test query error:', testError);
-        }
-        
-        // SECOND: Check what threat levels actually exist
-        console.log('📊 Checking threat level distribution...');
-        const { data: threatCheck, error: threatCheckError } = await supabase
-          .from('detections')
-          .select('threat_level')
-          .not('threat_level', 'is', null)
-          .limit(100);
-        
-        console.log('📈 Threat levels found:', threatCheck?.map(d => d.threat_level));
-        if (threatCheckError) {
-          console.error('❌ Threat check error:', threatCheckError);
-        }
-        
-        // THIRD: Try the actual data fetch with simpler approach - ONLY WITH URLS
-        console.log('🎯 Fetching actual threat data with non-null URLs...');
-        const { data: allThreats, error: allThreatsError } = await supabase
-          .from('detections')
-          .select('id, listing_title, platform, threat_level, threat_score, timestamp, listing_price, listing_url, search_term')
-          .not('listing_url', 'is', null)
-          .order('timestamp', { ascending: false })
-          .limit(500); // Start with larger but manageable limit
-        
-        if (allThreatsError) {
-          console.error('❌ All threats query error:', allThreatsError);
-          throw allThreatsError;
-        }
-        
-        console.log(`✅ Successfully fetched ${allThreats?.length || 0} threat records`);
-        
-        if (allThreats && allThreats.length > 0) {
-          // Filter and sort by priority
-          const highPriority = allThreats.filter(d => d.threat_level?.toLowerCase() === 'high');
-          const mediumPriority = allThreats.filter(d => d.threat_level?.toLowerCase() === 'medium');
-          const lowPriority = allThreats.filter(d => d.threat_level?.toLowerCase() === 'low');
-          
-          console.log(`📊 Threat breakdown: ${highPriority.length} high, ${mediumPriority.length} medium, ${lowPriority.length} low`);
-          
-          // Combine and sort by priority
-          const sortedThreats = [...highPriority, ...mediumPriority, ...lowPriority];
-          
-          setDetections(sortedThreats);
-        } else {
-          console.warn('⚠️  No threat data found in database');
-          setDetections([]);
-        }
-        
-      } catch (error) {
-        console.error('💥 Error fetching threats:', error);
-        console.log('🔄 Using fallback threat data...');
-        
-        // Enhanced fallback with more realistic critical evidence
-        const fallbackThreats = Array.from({ length: 100 }, (_, i) => {
-          const isHighPriority = i < 30;
-          const isMediumPriority = i < 70;
-          return {
-            id: `threat_${i}`,
-            listing_title: isHighPriority ? 
-              `CRITICAL: ${['Elephant Ivory Tusk Sale', 'Rhino Horn Powder', 'Tiger Bone Medicine', 'Pangolin Scale Trade'][i % 4]}` :
-              `Wildlife Product Detection ${i + 1}`,
-            platform: ['ebay', 'craigslist', 'olx', 'marketplaats', 'mercadolibre'][i % 5],
-            threat_level: isHighPriority ? 'HIGH' : (isMediumPriority ? 'MEDIUM' : 'LOW'),
-            threat_score: isHighPriority ? 85 + (i % 15) : (isMediumPriority ? 50 + (i % 35) : 20 + (i % 30)),
-            timestamp: new Date(Date.now() - i * 3600000).toISOString(),
-            listing_price: isHighPriority ? 500 + (i * 100) : 50 + (i * 10),
-            listing_url: `https://example.com/listing/${i}`,
-            search_term: ['elephant ivory', 'rhino horn', 'tiger bone', 'pangolin scale', 'bear bile'][i % 5]
-          };
-        });
-        setDetections(fallbackThreats);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchThreats();
+    loadAlertsData();
   }, []);
 
-  const filteredDetections = useMemo(() => {
-    return detections.filter(detection => {
-      const levelMatch = filterLevel === 'all' || 
-        detection.threat_level?.toLowerCase() === filterLevel.toLowerCase();
-      const platformMatch = filterPlatform === 'all' || 
-        detection.platform?.toLowerCase() === filterPlatform.toLowerCase();
-      return levelMatch && platformMatch;
-    });
-  }, [detections, filterLevel, filterPlatform]);
+  useEffect(() => {
+    applyFilters();
+  }, [alerts, filters]);
 
-  if (loading) {
+  const loadAlertsData = async () => {
+    setIsLoading(true);
+    try {
+      const result = await WildGuardDataService.getRecentAlerts(100);
+      if (result.success) {
+        setAlerts(result.data);
+        
+        // Extract unique platforms for filter dropdown
+        const uniquePlatforms = [...new Set(result.data.map(alert => alert.platform).filter(Boolean))];
+        setPlatforms(uniquePlatforms);
+      }
+    } catch (error) {
+      console.error('Error loading alerts:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const applyFilters = () => {
+    let filtered = [...alerts];
+
+    // Filter by severity
+    if (filters.severity) {
+      filtered = filtered.filter(alert => alert.severity === filters.severity);
+    }
+
+    // Filter by platform
+    if (filters.platform) {
+      filtered = filtered.filter(alert => alert.platform === filters.platform);
+    }
+
+    // Filter by search term
+    if (filters.searchTerm) {
+      const searchLower = filters.searchTerm.toLowerCase();
+      filtered = filtered.filter(alert => 
+        alert.threat?.toLowerCase().includes(searchLower) ||
+        alert.listingTitle?.toLowerCase().includes(searchLower) ||
+        alert.id?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Filter by date range
+    if (filters.dateRange !== 'all') {
+      const days = parseInt(filters.dateRange.replace('d', ''));
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - days);
+      
+      filtered = filtered.filter(alert => {
+        const alertDate = new Date(alert.timestamp);
+        return alertDate >= cutoffDate;
+      });
+    }
+
+    setFilteredAlerts(filtered);
+  };
+
+  const handleAlertClick = async (alert) => {
+    setSelectedAlert(alert);
+    
+    // If we have more detailed data available, fetch it
+    try {
+      const result = await WildGuardDataService.getDetectionDetails(alert.id);
+      if (result.success) {
+        setSelectedAlert(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching alert details:', error);
+    }
+  };
+
+  const getSeverityColor = (severity) => {
+    switch (severity) {
+      case 'CRITICAL': return 'bg-red-100 text-red-800 border-red-200';
+      case 'HIGH': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'MEDIUM': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'LOW': return 'bg-blue-100 text-blue-800 border-blue-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const exportAlerts = () => {
+    const csvContent = [
+      ['Alert ID', 'Timestamp', 'Threat', 'Platform', 'Severity', 'Score', 'Listing URL'],
+      ...filteredAlerts.map(alert => [
+        alert.id,
+        alert.timestamp,
+        alert.threat,
+        alert.platform,
+        alert.severity,
+        alert.threatScore,
+        alert.listingUrl
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `wildguard-alerts-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-red-500"></div>
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading real threat intelligence...</span>
       </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-8"
-    >
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-4xl font-black text-gray-900 mb-2">
-            Active Threat Monitoring
-          </h1>
-          <p className="text-xl text-gray-600">
-            Live threats detected across global platforms
-          </p>
-          {!AI_ENABLED && (
-            <div className="mt-2 px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-sm font-medium inline-block">
-              ⚡ Threat detection in Free Mode - Rule-based analysis
+    <div className="space-y-6">
+      {/* Header with Stats */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">🚨 Threat Intelligence Center</h2>
+            <p className="text-gray-600 mt-1">Real-time analysis of {alerts.length} threat detections</p>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-red-600">
+                {alerts.filter(a => a.severity === 'CRITICAL').length}
+              </p>
+              <p className="text-sm text-gray-600">Critical</p>
             </div>
-          )}
+            <div className="text-center">
+              <p className="text-2xl font-bold text-orange-600">
+                {alerts.filter(a => a.severity === 'HIGH').length}
+              </p>
+              <p className="text-sm text-gray-600">High</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-yellow-600">
+                {alerts.filter(a => a.severity === 'MEDIUM').length}
+              </p>
+              <p className="text-sm text-gray-600">Medium</p>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center space-x-4 mt-4 lg:mt-0">
+
+        {/* Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search threats..."
+              value={filters.searchTerm}
+              onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
+              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
           <select
-            value={filterLevel}
-            onChange={(e) => setFilterLevel(e.target.value)}
-            className="bg-white border border-gray-300 rounded-xl px-4 py-2 text-sm font-medium"
+            value={filters.severity}
+            onChange={(e) => setFilters(prev => ({ ...prev, severity: e.target.value }))}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">All Levels</option>
-            <option value="high">High Priority</option>
-            <option value="medium">Medium Priority</option>
-            <option value="low">Low Priority</option>
+            <option value="">All Severities</option>
+            <option value="CRITICAL">Critical</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
           </select>
+
           <select
-            value={filterPlatform}
-            onChange={(e) => setFilterPlatform(e.target.value)}
-            className="bg-white border border-gray-300 rounded-xl px-4 py-2 text-sm font-medium"
+            value={filters.platform}
+            onChange={(e) => setFilters(prev => ({ ...prev, platform: e.target.value }))}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">All Platforms</option>
-            {MONITORED_PLATFORMS.map(platform => (
-              <option key={platform.name} value={platform.name.toLowerCase()}>{platform.name}</option>
+            <option value="">All Platforms</option>
+            {platforms.map(platform => (
+              <option key={platform} value={platform}>{platform}</option>
             ))}
           </select>
+
+          <select
+            value={filters.dateRange}
+            onChange={(e) => setFilters(prev => ({ ...prev, dateRange: e.target.value }))}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="1d">Last 24 Hours</option>
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="all">All Time</option>
+          </select>
+
+          <button
+            onClick={exportAlerts}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center"
+          >
+            <Download size={16} className="mr-2" />
+            Export
+          </button>
+        </div>
+
+        <div className="text-sm text-gray-600">
+          Showing {filteredAlerts.length} of {alerts.length} total alerts
         </div>
       </div>
 
-      {/* Threat Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-red-500 text-white rounded-2xl p-6">
-          <div className="text-3xl font-bold">{filteredDetections.filter(d => d.threat_level?.toLowerCase() === 'high').length}</div>
-          <div className="text-red-100">High Priority</div>
-        </div>
-        <div className="bg-orange-500 text-white rounded-2xl p-6">
-          <div className="text-3xl font-bold">{filteredDetections.filter(d => d.threat_level?.toLowerCase() === 'medium').length}</div>
-          <div className="text-orange-100">Medium Priority</div>
-        </div>
-        <div className="bg-yellow-500 text-white rounded-2xl p-6">
-          <div className="text-3xl font-bold">{filteredDetections.filter(d => d.threat_level?.toLowerCase() === 'low').length}</div>
-          <div className="text-yellow-100">Low Priority</div>
-        </div>
-        <div className="bg-blue-500 text-white rounded-2xl p-6">
-          <div className="text-3xl font-bold">{filteredDetections.length}</div>
-          <div className="text-blue-100">Total Filtered</div>
-        </div>
-      </div>
-
-      {/* Threat List */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl border border-gray-100"
-      >
-        <div className="p-6 border-b border-gray-100">
-          <h3 className="text-xl font-bold text-gray-900">
-            Active Threats ({filteredDetections.length})
-          </h3>
-        </div>
-        
-        <div className="max-h-96 overflow-y-auto">
-          {filteredDetections.length > 0 ? (
-            filteredDetections.slice(0, 100).map((detection, index) => (
-              <motion.div
-                key={detection.id || index}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.02 }}
-                onClick={() => setSelectedThreat(detection)}
-                className="p-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
-              >
-                <div className="flex items-start space-x-4">
-                  <div className={`w-4 h-4 rounded-full mt-1 ${
-                    detection.threat_level?.toLowerCase() === 'high' ? 'bg-red-500' :
-                    detection.threat_level?.toLowerCase() === 'medium' ? 'bg-orange-500' : 'bg-yellow-500'
-                  }`}></div>
-                  
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <span className="font-semibold text-gray-900">
-                        {detection.listing_title?.slice(0, 60) || 'Wildlife Product Detection'}...
-                      </span>
-                      <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                        detection.threat_level?.toLowerCase() === 'high' ? 'bg-red-100 text-red-700' :
-                        detection.threat_level?.toLowerCase() === 'medium' ? 'bg-orange-100 text-orange-700' :
-                        'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {(detection.threat_level || 'MEDIUM').toUpperCase()}
-                      </span>
-                    </div>
-                    
-                    <div className="text-sm text-gray-600 mb-2">
-                      Platform: <span className="font-medium">{detection.platform}</span>
-                      {detection.listing_url && (
-                        <span className="ml-4">
-                          URL: <span className="font-mono text-xs">{detection.listing_url.slice(0, 50)}...</span>
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs text-gray-500">
-                        Detected: {new Date(detection.timestamp).toLocaleString()}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        {detection.threat_score && (
-                          <span className="text-xs font-medium text-blue-600">
-                            Score: {detection.threat_score}
-                          </span>
-                        )}
-                        {detection.listing_price && (
-                          <span className="text-xs font-medium text-green-600">
-                            ${parseFloat(detection.listing_price).toFixed(2)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+      {/* Alerts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {filteredAlerts.map((alert, index) => (
+          <div
+            key={alert.id || index}
+            className="bg-white rounded-xl shadow-lg border-l-4 hover:shadow-xl transition-shadow cursor-pointer"
+            style={{
+              borderLeftColor: 
+                alert.severity === 'CRITICAL' ? '#ef4444' :
+                alert.severity === 'HIGH' ? '#f97316' :
+                alert.severity === 'MEDIUM' ? '#eab308' : '#3b82f6'
+            }}
+            onClick={() => handleAlertClick(alert)}
+          >
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center">
+                  <AlertTriangle size={20} className="text-red-500 mr-2" />
+                  <span className="font-mono text-sm text-gray-600">
+                    {alert.id?.substring(0, 20)}...
+                  </span>
                 </div>
-              </motion.div>
-            ))
-          ) : (
-            <div className="p-8 text-center text-gray-500">
-              No threats detected with current filters.
-              {filterLevel !== 'all' || filterPlatform !== 'all' ? (
-                <div className="mt-2">
+                <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getSeverityColor(alert.severity)}`}>
+                  {alert.severity}
+                </span>
+              </div>
+
+              {/* Threat Details */}
+              <h3 className="font-semibold text-gray-900 mb-2">
+                {alert.threat || 'Threat Detection'}
+              </h3>
+
+              <div className="space-y-2 text-sm text-gray-600 mb-4">
+                <div className="flex items-center">
+                  <MapPin size={14} className="mr-2" />
+                  <span className="capitalize">{alert.platform}</span>
+                </div>
+                <div className="flex items-center">
+                  <Clock size={14} className="mr-2" />
+                  <span>{alert.timestamp}</span>
+                </div>
+                {alert.threatScore && (
+                  <div className="flex items-center">
+                    <Shield size={14} className="mr-2" />
+                    <span>Score: {alert.threatScore}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Listing Info */}
+              {alert.listingTitle && (
+                <div className="mb-4">
+                  <p className="text-sm font-medium text-gray-900 mb-1">Listing:</p>
+                  <p className="text-sm text-gray-600 line-clamp-2">
+                    {alert.listingTitle}
+                  </p>
+                  {alert.listingPrice && (
+                    <p className="text-sm font-semibold text-green-600 mt-1">
+                      ${alert.listingPrice}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
+                <div className="flex items-center space-x-2">
+                  {alert.alertSent && (
+                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                      Alert Sent
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex space-x-2">
+                  {alert.listingUrl && (
+                    <a
+                      href={alert.listingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-blue-600 hover:text-blue-800 flex items-center text-sm"
+                    >
+                      <ExternalLink size={14} className="mr-1" />
+                      View
+                    </a>
+                  )}
                   <button
-                    onClick={() => {
-                      setFilterLevel('all');
-                      setFilterPlatform('all');
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAlertClick(alert);
                     }}
-                    className="text-blue-600 hover:text-blue-700 font-medium"
+                    className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
                   >
-                    Clear filters
+                    <Eye size={14} className="mr-1" />
+                    Details
                   </button>
                 </div>
-              ) : null}
+              </div>
             </div>
-          )}
-        </div>
-      </motion.div>
+          </div>
+        ))}
+      </div>
 
-      {/* Threat Detail Modal */}
-      {selectedThreat && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedThreat(null)}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-2xl p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-gray-900">Threat Details</h3>
-              <button
-                onClick={() => setSelectedThreat(null)}
-                className="p-2 hover:bg-gray-100 rounded-xl"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            
-            <div className="space-y-6">
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Detection Information</h4>
-                <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-                  <div><span className="font-medium">Title:</span> {selectedThreat.listing_title || 'Not specified'}</div>
-                  <div><span className="font-medium">Platform:</span> {selectedThreat.platform}</div>
-                  <div><span className="font-medium">Threat Level:</span> 
-                    <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
-                      selectedThreat.threat_level?.toLowerCase() === 'high' ? 'bg-red-100 text-red-700' :
-                      selectedThreat.threat_level?.toLowerCase() === 'medium' ? 'bg-orange-100 text-orange-700' :
-                      'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {(selectedThreat.threat_level || 'medium').toUpperCase()}
+      {filteredAlerts.length === 0 && (
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+          <AlertTriangle size={48} className="text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Threats Found</h3>
+          <p className="text-gray-600">
+            {filters.severity || filters.platform || filters.searchTerm
+              ? 'Try adjusting your filters to see more results.'
+              : 'No threat detections match your current criteria.'}
+          </p>
+        </div>
+      )}
+
+      {/* Alert Details Modal */}
+      {selectedAlert && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-xl font-bold text-gray-900">Threat Details</h3>
+                <button
+                  onClick={() => setSelectedAlert(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Alert ID</label>
+                    <p className="font-mono text-sm">{selectedAlert.id}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Severity</label>
+                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getSeverityColor(selectedAlert.severity)}`}>
+                      {selectedAlert.severity}
                     </span>
                   </div>
-                  {selectedThreat.threat_score && (
-                    <div><span className="font-medium">Threat Score:</span> {selectedThreat.threat_score}</div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Threat Description</label>
+                  <p className="text-gray-900">{selectedAlert.threat}</p>
+                </div>
+
+                {selectedAlert.listingTitle && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Listing Title</label>
+                    <p className="text-gray-900">{selectedAlert.listingTitle}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Platform</label>
+                    <p className="capitalize">{selectedAlert.platform}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Detection Time</label>
+                    <p>{selectedAlert.timestamp}</p>
+                  </div>
+                </div>
+
+                {selectedAlert.listingUrl && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Original Listing</label>
+                    <a
+                      href={selectedAlert.listingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 flex items-center"
+                    >
+                      View Original Listing <ExternalLink size={16} className="ml-2" />
+                    </a>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  {selectedAlert.threatScore && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Threat Score</label>
+                      <p className="text-2xl font-bold text-red-600">{selectedAlert.threatScore}</p>
+                    </div>
                   )}
-                  {selectedThreat.listing_price && (
-                    <div><span className="font-medium">Price:</span> ${parseFloat(selectedThreat.listing_price).toFixed(2)}</div>
+                  {selectedAlert.listingPrice && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Listing Price</label>
+                      <p className="text-2xl font-bold text-green-600">${selectedAlert.listingPrice}</p>
+                    </div>
                   )}
-                  <div><span className="font-medium">Detected:</span> {new Date(selectedThreat.timestamp).toLocaleString()}</div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <label className="text-sm font-medium text-gray-700">Status</label>
+                  <div className="flex items-center space-x-4 mt-2">
+                    <span className={`px-3 py-1 rounded-full text-sm ${
+                      selectedAlert.alertSent 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {selectedAlert.alertSent ? 'Alert Sent' : 'Pending Review'}
+                    </span>
+                    <span className="text-sm text-gray-600">
+                      {selectedAlert.status}
+                    </span>
+                  </div>
                 </div>
               </div>
-              
-              {selectedThreat.listing_url && (
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Source Information</h4>
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <div className="font-mono text-sm break-all">{selectedThreat.listing_url}</div>
-                  </div>
-                </div>
-              )}
-              
-              {selectedThreat.search_term && (
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Search Term</h4>
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
-                      {selectedThreat.search_term}
-                    </span>
-                  </div>
-                </div>
-              )}
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

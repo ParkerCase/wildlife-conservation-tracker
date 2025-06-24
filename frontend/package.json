@@ -1,7 +1,8 @@
 {
   "name": "wildguard-frontend",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
+  "description": "WildGuard AI - Real-time wildlife trafficking detection frontend with 16-language multilingual support",
   "dependencies": {
     "@nivo/bar": "^0.84.0",
     "@nivo/core": "^0.84.0",
@@ -24,13 +25,20 @@
     "react-hot-toast": "^2.5.2",
     "react-router-dom": "^6.30.1",
     "react-scripts": "5.0.1",
+    "recharts": "^2.15.4",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "PORT=3000 react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "start:prod": "PORT=3000 REACT_APP_ENV=production react-scripts start",
+    "build:prod": "REACT_APP_ENV=production react-scripts build",
+    "serve": "npx serve -s build -l 3000",
+    "analyze": "npx source-map-explorer 'build/static/js/*.js'",
+    "lint": "eslint src --ext .js,.jsx",
+    "format": "prettier --write src/**/*.{js,jsx,css,md}"
   },
   "eslintConfig": {
     "extends": [
@@ -49,5 +57,34 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0",
+    "source-map-explorer": "^2.5.3"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "wildlife",
+    "conservation",
+    "ai",
+    "trafficking",
+    "detection",
+    "multilingual",
+    "supabase",
+    "react"
+  ],
+  "homepage": "https://wildguard-frontend.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/parkercase/conservation-bot"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "WildGuard AI Team",
+    "email": "contact@wildguard.ai"
   }
 }
