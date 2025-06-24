@@ -2,6 +2,7 @@
 """
 WildGuard AI Real Data Backend - Connected to Supabase
 Returns 100% real data from the actual database
+SECURITY: All credentials loaded from environment variables
 """
 
 from flask import Flask, jsonify, request
@@ -9,7 +10,6 @@ from flask_cors import CORS
 from datetime import datetime, timedelta
 import os
 import json
-from supabase import create_client
 
 app = Flask(__name__)
 
@@ -22,12 +22,31 @@ CORS(
     supports_credentials=True,
 )
 
-# Supabase configuration
-SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://zjwjptxmrfnwlcgfptrw.supabase.co')
-SUPABASE_KEY = os.getenv('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpqd2pwdHhtcmZud2xjZ2ZwdHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTk5MzI2ODIsImV4cCI6MjAzNTUwODY4Mn0.89YNyHJFTNLWRYxqoT-VdNGMjQHlf5cVcgZKBHaEPL8')
+# Supabase configuration - NEVER hardcode these!
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_KEY = os.getenv('SUPABASE_ANON_KEY')
+
+# Validate environment variables
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("❌ ERROR: Missing Supabase environment variables!")
+    print("Please set SUPABASE_URL and SUPABASE_ANON_KEY in your environment")
+    print("Example:")
+    print("export SUPABASE_URL=your_supabase_url")
+    print("export SUPABASE_ANON_KEY=your_supabase_key")
+    exit(1)
 
 # Initialize Supabase client
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+try:
+    from supabase import create_client
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print(f"✅ Supabase client initialized successfully")
+except ImportError:
+    print("❌ ERROR: supabase-py not installed")
+    print("Please install: pip install supabase")
+    exit(1)
+except Exception as e:
+    print(f"❌ ERROR: Failed to initialize Supabase client: {e}")
+    exit(1)
 
 @app.after_request
 def after_request(response):
@@ -44,8 +63,9 @@ def home():
         "service": "WildGuard AI Real Data Backend",
         "status": "running",
         "timestamp": datetime.now().isoformat(),
-        "database": "Supabase Connected",
-        "message": "Serving 100% real wildlife trafficking data!"
+        "database": "Supabase Connected (Secure)",
+        "message": "Serving 100% real wildlife trafficking data!",
+        "security": "All credentials loaded from environment variables"
     })
 
 @app.route("/health")
@@ -54,14 +74,18 @@ def health():
         # Test database connection
         result = supabase.table('detections').select('id').limit(1).execute()
         db_status = "connected" if result.data else "no data"
+        db_count = len(result.data) if result.data else 0
     except Exception as e:
         db_status = f"error: {str(e)}"
+        db_count = 0
     
     return jsonify({
         "status": "healthy",
         "service": "WildGuard AI Real Backend",
         "timestamp": datetime.now().isoformat(),
-        "database_status": db_status
+        "database_status": db_status,
+        "database_records": db_count,
+        "environment_secure": bool(SUPABASE_URL and SUPABASE_KEY)
     })
 
 @app.route("/api/stats/realtime")
@@ -104,7 +128,7 @@ def realtime_stats():
                 "alerts_sent": alerts_sent,
                 "active_platforms": unique_platforms[:7],
                 "last_updated": datetime.now().isoformat(),
-                "data_source": "Real Supabase Database"
+                "data_source": "Real Supabase Database (Secure Connection)"
             }
         })
         
@@ -487,15 +511,17 @@ if __name__ == "__main__":
     print("📊 Real Stats: http://localhost:5000/api/stats/realtime")
     print("🔥 Real Alerts: http://localhost:5000/api/alerts/recent")
     print("🌍 Multilingual: http://localhost:5000/api/multilingual/analytics")
-    print("💾 Database: Supabase Connected")
+    print("💾 Database: Supabase Connected (Secure)")
+    print("🔒 Security: All credentials from environment variables")
     print("🎯 Data: 100% Real Wildlife Trafficking Detections")
     print("=" * 60)
 
-    # Install supabase if not available
+    # Check if supabase is available
     try:
         import supabase
+        print("✅ Supabase library available")
     except ImportError:
-        print("Installing supabase...")
+        print("❌ Installing supabase...")
         import subprocess
         subprocess.check_call(['pip', 'install', 'supabase'])
         from supabase import create_client

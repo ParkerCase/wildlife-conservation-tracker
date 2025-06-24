@@ -1,8 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Environment variables for Supabase
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://zjwjptxmrfnwlcgfptrw.supabase.co';
-const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpqd2pwdHhtcmZud2xjZ2ZwdHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTk5MzI2ODIsImV4cCI6MjAzNTUwODY4Mn0.89YNyHJFTNLWRYxqoT-VdNGMjQHlf5cVcgZKBHaEPL8';
+// Environment variables for Supabase - NEVER hardcode these!
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+
+// Validate environment variables
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables. Please check your .env file.');
+}
 
 // Create Supabase client
 export const supabase = createClient(supabaseUrl, supabaseKey);
@@ -10,6 +15,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 /**
  * WildGuard AI - Real Supabase Data Service
  * All functions return REAL data from the database
+ * SECURITY: All credentials are loaded from environment variables
  */
 
 export class WildGuardDataService {
