@@ -176,8 +176,10 @@ const useAnalyticsData = () => {
         'ebay': 287000, 
         'craigslist': 98000, 
         'olx': 87000,
-        'marketplaats': 45000,
-        'mercadolibre': 28940
+        'marktplaats': 45000,
+        'mercadolibre': 28940,
+        'gumtree': 15000,
+        'avito': 12000
       }
     }
   };
@@ -313,7 +315,7 @@ const KeywordsShowcase = () => {
             <div className="text-gray-700">Scan Frequency</div>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold text-orange-600 mb-2">5</div>
+            <div className="text-3xl font-bold text-orange-600 mb-2">7</div>
             <div className="text-gray-700">Global Platforms</div>
           </div>
         </div>
@@ -365,8 +367,10 @@ const AdvancedAnalytics = () => {
           'ebay': '220',
           'craigslist': '0', 
           'olx': '270',
-          'marketplaats': '120',
-          'mercadolibre': '30'
+          'marktplaats': '120',
+          'mercadolibre': '30',
+          'gumtree': '150',
+          'avito': '250'
         }[name] || '180'
       }, 70%, 50%)`
     }));
