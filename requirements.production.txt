@@ -12,3 +12,6 @@ requests>=2.31.0
 lxml>=4.9.0
 python-json-logger>=2.0.7
 tenacity>=8.2.3
+
+# Multilingual support
+googletrans==4.0.0rc1

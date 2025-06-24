@@ -69,6 +69,9 @@ class CompleteEnhancedScanner:
         ]
         self.platform_index = 0
         
+        # Load multilingual keywords
+        self.load_multilingual_keywords()
+        
         # Initialize new platform scanners
         self.new_platform_scanners = {
             'facebook_marketplace': ProductionFacebookMarketplaceScanner(),
@@ -95,6 +98,8 @@ class CompleteEnhancedScanner:
         logging.info(f"🌍 Platforms: {', '.join(self.platforms)} ({len(self.platforms)} total)")
         logging.info(f"🎯 Keywords: {len(self.all_keywords):,}")
         logging.info(f"🚫 Duplicate prevention: Active")
+        if hasattr(self, 'multilingual_keywords'):
+            logging.info(f"🌐 Multilingual: {len(self.keywords_by_language)} languages, {len(self.multilingual_keywords):,} total keywords")
 
     def load_url_cache(self):
         """Load previously seen URLs"""
@@ -122,6 +127,86 @@ class CompleteEnhancedScanner:
         except Exception as e:
             logging.warning(f"Cache save error: {e}")
 
+    def load_multilingual_keywords(self):
+        """Load multilingual keywords from database"""
+        try:
+            with open('multilingual_wildlife_keywords.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                self.keywords_by_language = data['keywords_by_language']
+                
+                # Flatten all keywords into single list
+                self.multilingual_keywords = []
+                for lang_keywords in self.keywords_by_language.values():
+                    self.multilingual_keywords.extend(lang_keywords)
+                
+                # Remove duplicates
+                self.multilingual_keywords = list(set(self.multilingual_keywords))
+                
+                logging.info(f"🌍 Loaded multilingual keywords:")
+                for lang_code, keywords in self.keywords_by_language.items():
+                    lang_name = self.get_language_name(lang_code)
+                    logging.info(f"  {lang_name}: {len(keywords):,} keywords")
+                
+                return True
+                
+        except Exception as e:
+            logging.warning(f"Could not load multilingual keywords: {e}")
+            logging.info("Falling back to English-only keywords")
+            self.multilingual_keywords = self.all_keywords
+            self.keywords_by_language = {'en': self.all_keywords}
+            return False
+    
+    def get_language_name(self, lang_code: str) -> str:
+        """Get human-readable language name"""
+        language_names = {
+            'en': 'English', 'es': 'Spanish', 'zh': 'Chinese', 'fr': 'French',
+            'pt': 'Portuguese', 'vi': 'Vietnamese', 'th': 'Thai', 'id': 'Indonesian',
+            'ru': 'Russian', 'ar': 'Arabic', 'ja': 'Japanese', 'ko': 'Korean',
+            'hi': 'Hindi', 'sw': 'Swahili', 'de': 'German', 'it': 'Italian'
+        }
+        return language_names.get(lang_code, lang_code.upper())
+    
+    def get_multilingual_keyword_batch(self, batch_size: int = 15) -> List[str]:
+        """Get a keyword batch mixing multiple languages"""
+        
+        if not hasattr(self, 'multilingual_keywords') or not self.multilingual_keywords:
+            # Fallback to original method if multilingual not loaded
+            return self.get_next_keyword_batch(batch_size)
+        
+        # Language distribution strategy:
+        # 60% English (most platforms are English-based)
+        # 40% other languages (to catch international listings)
+        english_ratio = 0.6
+        english_count = int(batch_size * english_ratio)
+        other_count = batch_size - english_count
+        
+        keywords = []
+        
+        # Add English keywords
+        english_keywords = self.keywords_by_language.get('en', [])
+        if english_keywords and english_count > 0:
+            sample_size = min(english_count, len(english_keywords))
+            keywords.extend(random.sample(english_keywords, sample_size))
+        
+        # Add other language keywords
+        if other_count > 0:
+            other_lang_keywords = []
+            for lang_code, lang_keywords in self.keywords_by_language.items():
+                if lang_code != 'en':
+                    other_lang_keywords.extend(lang_keywords)
+            
+            if other_lang_keywords:
+                sample_size = min(other_count, len(other_lang_keywords))
+                keywords.extend(random.sample(other_lang_keywords, sample_size))
+        
+        # Fill remaining slots if needed
+        while len(keywords) < batch_size and self.multilingual_keywords:
+            remaining = batch_size - len(keywords)
+            additional = random.sample(self.multilingual_keywords, min(remaining, len(self.multilingual_keywords)))
+            keywords.extend([k for k in additional if k not in keywords])
+        
+        return keywords[:batch_size]
+
     async def __aenter__(self):
         timeout = aiohttp.ClientTimeout(total=300)
         connector = aiohttp.TCPConnector(limit=100, limit_per_host=25)
@@ -145,7 +230,12 @@ class CompleteEnhancedScanner:
         return platform
 
     def get_next_keyword_batch(self, batch_size=10) -> List[str]:
-        """Enhanced keyword batch management"""
+        """Enhanced keyword batch management - now uses multilingual by default"""
+        # Use multilingual keywords if available
+        if hasattr(self, 'multilingual_keywords') and self.multilingual_keywords:
+            return self.get_multilingual_keyword_batch(batch_size)
+        
+        # Fallback to original English-only method
         # Prioritize critical species
         if self.keyword_index % 3 == 0:
             available_keywords = TIER_1_CRITICAL_SPECIES
@@ -525,7 +615,11 @@ class CompleteEnhancedScanner:
                 platform = self.get_next_platform()
                 keyword_batch = self.get_next_keyword_batch()
                 
-                logging.info(f"🔍 Scanning {platform} with {len(keyword_batch)} keywords")
+                # Show multilingual status
+                if hasattr(self, 'multilingual_keywords') and self.multilingual_keywords:
+                    logging.info(f"🌍 Scanning {platform} with {len(keyword_batch)} multilingual keywords")
+                else:
+                    logging.info(f"🔍 Scanning {platform} with {len(keyword_batch)} keywords")
                 
                 # Scan platform
                 raw_results = await self.scan_platform_with_keywords(platform, keyword_batch)
