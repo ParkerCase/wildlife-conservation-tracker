@@ -576,71 +576,70 @@ class ContinuousDeduplicationScanner:
         return wildlife_count
 
     async def store_unique_results(self, platform: str, results: List[Dict]) -> int:
-    """Store only unique results - now with database-level deduplication"""
-    if not results:
-        return 0
+        """Store only unique results - now with database-level deduplication"""
+        if not results:
+            return 0
 
-    stored_count = 0
+        stored_count = 0
 
-    headers = {
-        "apikey": self.supabase_key,
-        "Authorization": f"Bearer {self.supabase_key}",
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal",
-    }
+        headers = {
+            "apikey": self.supabase_key,
+            "Authorization": f"Bearer {self.supabase_key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        }
 
-    for result in results:
-        try:
-            evidence_id = f"CONTINUOUS-{platform.upper()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{result.get('item_id', 'unknown')}"
+        for result in results:
+            try:
+                evidence_id = f"CONTINUOUS-{platform.upper()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{result.get('item_id', 'unknown')}"
 
-            detection = {
-                "evidence_id": evidence_id,
-                "timestamp": datetime.now().isoformat(),
-                "platform": platform,
-                "threat_score": self.calculate_threat_score(result),
-                "threat_level": "UNRATED",
-                "species_involved": f"Continuous scan: {result.get('search_term', 'unknown')}",
-                "alert_sent": False,
-                "status": "CONTINUOUS_DEDUPLICATION_SCAN",
-                "listing_title": (result.get("title", "") or "")[:500],
-                "listing_url": result.get("url", "") or "",
-                "listing_price": str(result.get("price", "") or ""),
-                "search_term": result.get("search_term", "") or "",
-            }
+                detection = {
+                    "evidence_id": evidence_id,
+                    "timestamp": datetime.now().isoformat(),
+                    "platform": platform,
+                    "threat_score": self.calculate_threat_score(result),
+                    "threat_level": "UNRATED",
+                    "species_involved": f"Continuous scan: {result.get('search_term', 'unknown')}",
+                    "alert_sent": False,
+                    "status": "CONTINUOUS_DEDUPLICATION_SCAN",
+                    "listing_title": (result.get("title", "") or "")[:500],
+                    "listing_url": result.get("url", "") or "",
+                    "listing_price": str(result.get("price", "") or ""),
+                    "search_term": result.get("search_term", "") or "",
+                }
 
-            detection = {k: v for k, v in detection.items() if v is not None}
+                detection = {k: v for k, v in detection.items() if v is not None}
 
-            url = f"{self.supabase_url}/rest/v1/detections"
+                url = f"{self.supabase_url}/rest/v1/detections"
 
-            async with self.session.post(url, headers=headers, json=detection) as resp:
-                if resp.status in [200, 201]:
-                    stored_count += 1
-                elif resp.status == 409:  # Conflict due to unique constraint
-                    # URL already exists in database, skip it
-                    logging.debug(f"Skipping duplicate URL: {result.get('url', '')}")
-                    continue
-                else:
-                    # Check if it's a unique constraint violation in the response
-                    response_text = await resp.text()
-                    if "unique_listing_url" in response_text.lower():
-                        logging.debug(
-                            f"Duplicate URL detected: {result.get('url', '')}"
-                        )
+                async with self.session.post(url, headers=headers, json=detection) as resp:
+                    if resp.status in [200, 201]:
+                        stored_count += 1
+                        logging.debug(f"✅ Stored: {result.get('url', '')}")
+                    elif resp.status == 409:  # Conflict due to unique constraint
+                        # URL already exists in database, skip it
+                        logging.debug(f"🚫 Duplicate URL blocked by database: {result.get('url', '')}")
                         continue
                     else:
-                        logging.warning(f"Storage error {resp.status}: {response_text}")
+                        # Check if it's a unique constraint violation in the response
+                        response_text = await resp.text()
+                        if "unique_listing_url" in response_text.lower() or "unique constraint" in response_text.lower():
+                            logging.debug(f"🚫 Duplicate URL blocked by constraint: {result.get('url', '')}")
+                            continue
+                        else:
+                            logging.warning(f"❌ Storage error {resp.status}: {response_text}")
 
-        except Exception as e:
-            error_msg = str(e).lower()
-            if "unique" in error_msg and "listing_url" in error_msg:
-                # Duplicate URL, skip it
-                logging.debug(f"Skipping duplicate URL: {result.get('url', '')}")
-                continue
-            else:
-                logging.warning(f"Storage error: {e}")
-                continue
+            except Exception as e:
+                error_msg = str(e).lower()
+                if "unique" in error_msg and ("listing_url" in error_msg or "constraint" in error_msg):
+                    # Duplicate URL, skip it
+                    logging.debug(f"🚫 Duplicate URL blocked by exception: {result.get('url', '')}")
+                    continue
+                else:
+                    logging.warning(f"❌ Storage exception: {e}")
+                    continue
 
-    return stored_count
+        return stored_count
 
     def calculate_threat_score(self, result: Dict) -> int:
         """Calculate threat score for wildlife trafficking"""
