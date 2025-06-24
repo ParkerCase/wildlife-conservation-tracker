@@ -1,4 +1,4 @@
-name: WildGuard Complete Enhanced Scanner - 8 Platforms
+name: WildGuard Complete Enhanced Scanner - 7 Platforms
 
 on:
   schedule:
@@ -38,15 +38,14 @@ jobs:
           echo "🌍 Starting COMPLETE ENHANCED GLOBAL SCANNER"
           echo "================================================"
           echo "🎯 Target: 100,000+ listings per day"
-          echo "🌍 8 Platforms:"
+          echo "🌍 7 Platforms:"
           echo "   • eBay (Global)"
           echo "   • Craigslist (North America)"
           echo "   • OLX (Europe/Latin America)"
           echo "   • Marktplaats (Netherlands/Belgium)"
           echo "   • MercadoLibre (Latin America)"
-          echo "   • Facebook Marketplace (Global)"
-          echo "   • Avito (Russia/Eastern Europe)"
           echo "   • Gumtree (UK/Australia/South Africa)"
+          echo "   • Avito (Russia/Eastern Europe)"
           echo "🚫 Duplicate Prevention: Database + Cache"
           echo "🎯 Keywords: 1000+ endangered species"
           echo "================================================"
@@ -78,7 +77,7 @@ jobs:
           echo "=================================="
           echo "Session: 3-hour maximum"
           echo "Next session: In 3 hours"
-          echo "Platform coverage: 8 major global marketplaces"
+          echo "Platform coverage: 7 major global marketplaces"
           echo "Geographic reach: Global (all continents)"
           echo "Target performance: 100,000+ listings/day"
           echo "Duplicate prevention: Active (URL-based)"
@@ -88,7 +87,7 @@ jobs:
           
           # Calculate approximate performance
           echo "📊 PERFORMANCE PROJECTION:"
-          echo "• 8 scans per day (every 3 hours)"
+          echo "• 8 scans per day (every 3 hours, 7 platforms)"
           echo "• ~15,000 listings per scan (target)"
           echo "• Daily projection: 120,000+ listings"
           echo "• Monthly projection: 3.6M+ listings"

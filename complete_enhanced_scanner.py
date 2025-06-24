@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 WildGuard AI - Complete Enhanced Continuous Scanner
-8 Working Platforms + Historical Backfill + Duplicate Prevention
+7 Working Platforms + Historical Backfill + Duplicate Prevention
 """
 
 import asyncio
@@ -62,10 +62,10 @@ class CompleteEnhancedScanner:
         self.wildlife_hits = 0
         self.start_time = datetime.now()
         
-        # Complete platform list (8 working platforms)
+        # Complete platform list (7 working platforms)
         self.platforms = [
             'ebay', 'craigslist', 'olx', 'marktplaats', 'mercadolibre',  # Original 5
-            'facebook_marketplace', 'avito'  # New verified working platforms
+            'gumtree', 'avito'  # New verified working platforms (removed Facebook)
         ]
         self.platform_index = 0
         
@@ -542,18 +542,30 @@ class CompleteEnhancedScanner:
                 cycle_duration = (datetime.now() - cycle_start).total_seconds()
                 total_runtime = (datetime.now() - self.start_time).total_seconds()
                 
-                hourly_rate = int(self.total_unique * 3600 / total_runtime) if total_runtime > 0 else 0
-                daily_projection = hourly_rate * 24
+                # Honest metrics: base on what's actually stored, not cached
+                stored_hourly_rate = int(self.total_stored * 3600 / total_runtime) if total_runtime > 0 else 0
+                stored_daily_projection = stored_hourly_rate * 24
+                
+                # Raw scanning metrics (includes duplicates)
+                raw_hourly_rate = int(self.total_unique * 3600 / total_runtime) if total_runtime > 0 else 0
+                raw_daily_projection = raw_hourly_rate * 24
                 
                 logging.info(f"📊 Cycle {cycle_count}:")
-                logging.info(f"   Results: {len(raw_results)}")
-                logging.info(f"   Stored: {stored_count}")
-                logging.info(f"   Cache: {len(self.seen_urls):,} URLs")
-                logging.info(f"   Rate: {hourly_rate:,}/hour → {daily_projection:,}/day")
+                logging.info(f"   Raw found: {len(raw_results)}")
+                logging.info(f"   New stored: {stored_count}")
+                logging.info(f"   Cache size: {len(self.seen_urls):,} URLs")
+                logging.info(f"   Stored rate: {stored_hourly_rate:,}/hour → {stored_daily_projection:,}/day")
+                logging.info(f"   Raw rate: {raw_hourly_rate:,}/hour → {raw_daily_projection:,}/day")
                 
-                # Check if we're meeting 100k+ daily goal
-                if daily_projection >= 100000:
+                # Check if we're meeting 100k+ daily goal (based on actual stored results)
+                if stored_daily_projection >= 100000:
                     logging.info("🎉 MEETING 100K+ DAILY GOAL!")
+                elif stored_daily_projection >= 50000:
+                    logging.info("🎯 GOOD PERFORMANCE: 50K+ daily!")
+                elif stored_daily_projection >= 10000:
+                    logging.info("📈 MODERATE PERFORMANCE: 10K+ daily")
+                else:
+                    logging.info("🔄 Building up - mostly duplicates filtered")
                 
                 # Adaptive delay
                 delay = 60 if len(raw_results) > 15 else 90
@@ -602,7 +614,7 @@ if __name__ == "__main__":
         asyncio.run(run_historical_backfill())
     else:
         print("🌍 WildGuard AI - Complete Enhanced Scanner")
-        print("🎯 8 Platforms + Duplicate Prevention + Historical Support")
+        print("🎯 7 Platforms + Duplicate Prevention + Historical Support")
         print("⏰ Target: 100,000+ listings per day")
         print("-" * 80)
         asyncio.run(run_complete_scanner())
