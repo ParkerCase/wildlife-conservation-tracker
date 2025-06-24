@@ -1,0 +1,286 @@
+name: Fixed Production Scanner - Enhanced Performance
+on:
+  schedule:
+    # Run every 2 hours for complete keyword coverage
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: 'Keywords per platform per run'
+        required: false
+        default: '30'
+      test_mode:
+        description: 'Run in test mode (reduced keywords)'
+        required: false
+        default: 'false'
+      platforms:
+        description: 'Platforms to scan (all, facebook_marketplace, gumtree, avito)'
+        required: false
+        default: 'all'
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+jobs:
+  comprehensive-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Multiple concurrent jobs for better coverage
+        scanner-group: [1, 2, 3]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests beautifulsoup4 python-dotenv schedule
+    
+    - name: Create environment file
+      run: |
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+        echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+    
+    - name: Run Fixed Production Scanner Group ${{ matrix.scanner-group }}
+      run: |
+        # Configuration
+        BATCH_SIZE=${{ github.event.inputs.batch_size || '30' }}
+        PLATFORMS="${{ github.event.inputs.platforms || 'all' }}"
+        TEST_MODE="${{ github.event.inputs.test_mode || 'false' }}"
+        GROUP=${{ matrix.scanner-group }}
+        
+        # Calculate keyword offset for this group
+        KEYWORD_OFFSET=$((($GROUP - 1) * $BATCH_SIZE))
+        
+        echo "🚀 Fixed Scanner Group $GROUP starting..."
+        echo "📊 Batch size: $BATCH_SIZE"
+        echo "🎯 Platforms: $PLATFORMS"
+        echo "🧪 Test mode: $TEST_MODE"
+        echo "📍 Keyword offset: $KEYWORD_OFFSET"
+        
+        # Build command
+        CMD="python fixed_production_scanner.py --batch-size $BATCH_SIZE --keyword-offset $KEYWORD_OFFSET --scanner-group $GROUP --platforms \"$PLATFORMS\""
+        
+        if [ "$TEST_MODE" = "true" ]; then
+          CMD="$CMD --test-mode"
+        fi
+        
+        echo "🔧 Running: $CMD"
+        eval $CMD
+    
+    - name: Upload scan results
+      uses: actions/upload-artifact@v3
+      with:
+        name: fixed-scan-results-group-${{ matrix.scanner-group }}
+        path: |
+          scanner.log
+          keyword_state.json
+          url_cache.json
+        retention-days: 7
+    
+    - name: Generate enhanced performance report
+      run: |
+        echo "# Fixed Scanner Group ${{ matrix.scanner-group }} Performance Report" > performance_report.md
+        echo "- **Timestamp:** $(date)" >> performance_report.md
+        echo "- **Batch Size:** ${{ github.event.inputs.batch_size || '30' }}" >> performance_report.md
+        echo "- **Test Mode:** ${{ github.event.inputs.test_mode || 'false' }}" >> performance_report.md
+        echo "- **Platforms:** ${{ github.event.inputs.platforms || 'all' }}" >> performance_report.md
+        echo "" >> performance_report.md
+        
+        # Extract metrics from log
+        if [ -f scanner.log ]; then
+          echo "## Platform Performance:" >> performance_report.md
+          
+          # Count listings found per platform
+          FACEBOOK_COUNT=$(grep -c "Facebook: Found" scanner.log || echo "0")
+          GUMTREE_COUNT=$(grep -c "Gumtree: Found" scanner.log || echo "0")
+          AVITO_COUNT=$(grep -c "Avito: Found" scanner.log || echo "0")
+          
+          echo "- **Facebook Marketplace:** $FACEBOOK_COUNT listings" >> performance_report.md
+          echo "- **Gumtree:** $GUMTREE_COUNT listings" >> performance_report.md
+          echo "- **Avito:** $AVITO_COUNT listings" >> performance_report.md
+          
+          TOTAL_FOUND=$((FACEBOOK_COUNT + GUMTREE_COUNT + AVITO_COUNT))
+          echo "- **Total Found:** $TOTAL_FOUND listings" >> performance_report.md
+          
+          # Count saved listings
+          SAVED_COUNT=$(grep -c "Saved:" scanner.log || echo "0")
+          echo "- **Successfully Saved:** $SAVED_COUNT listings" >> performance_report.md
+          
+          # Calculate save rate
+          if [ $TOTAL_FOUND -gt 0 ]; then
+            SAVE_RATE=$(echo "scale=1; $SAVED_COUNT * 100 / $TOTAL_FOUND" | bc)
+            echo "- **Save Rate:** ${SAVE_RATE}%" >> performance_report.md
+          fi
+          
+          echo "" >> performance_report.md
+          echo "## Quality Metrics:" >> performance_report.md
+          
+          # Count duplicates filtered
+          DUPLICATES_FILTERED=$(grep -c "Skipping duplicate" scanner.log || echo "0")
+          echo "- **Duplicates Filtered:** $DUPLICATES_FILTERED" >> performance_report.md
+          
+          # Count errors
+          ERROR_COUNT=$(grep -c "error" scanner.log || echo "0")
+          echo "- **Errors:** $ERROR_COUNT" >> performance_report.md
+          
+          # Performance indicators
+          if [ $AVITO_COUNT -gt 0 ]; then
+            echo "- **Avito Status:** ✅ Working (Star Performer)" >> performance_report.md
+          else
+            echo "- **Avito Status:** ⚠️ No results" >> performance_report.md
+          fi
+          
+          if [ $FACEBOOK_COUNT -gt 0 ]; then
+            echo "- **Facebook Status:** ✅ Fixed selectors working" >> performance_report.md
+          else
+            echo "- **Facebook Status:** ⚠️ May need selector adjustment" >> performance_report.md
+          fi
+          
+          if [ $GUMTREE_COUNT -gt 0 ]; then
+            echo "- **Gumtree Status:** ✅ Fixed selectors working" >> performance_report.md
+          else
+            echo "- **Gumtree Status:** ⚠️ May need selector adjustment" >> performance_report.md
+          fi
+        fi
+        
+        cat performance_report.md
+
+  system-health-check:
+    needs: comprehensive-scan
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install requests python-dotenv
+    
+    - name: Run system health check
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      run: |
+        python -c "
+        import requests
+        import os
+        from datetime import datetime, timedelta
+        
+        # Check recent scan results
+        url = f\"{os.getenv('SUPABASE_URL')}/rest/v1/detections\"
+        headers = {
+            'apikey': os.getenv('SUPABASE_ANON_KEY'),
+            'Authorization': f'Bearer {os.getenv(\"SUPABASE_ANON_KEY\")}'
+        }
+        
+        # Get records from last 4 hours
+        recent_time = (datetime.now() - timedelta(hours=4)).isoformat()
+        params = {
+            'select': 'platform,detected_at,listing_url',
+            'detected_at': f'gte.{recent_time}',
+            'order': 'detected_at.desc',
+            'limit': '1000'
+        }
+        
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                total_recent = len(data)
+                
+                if total_recent > 0:
+                    # Platform breakdown
+                    platforms = {}
+                    for record in data:
+                        platform = record.get('platform', 'unknown')
+                        platforms[platform] = platforms.get(platform, 0) + 1
+                    
+                    print(f'✅ System Health: GOOD')
+                    print(f'📊 Recent activity (last 4 hours): {total_recent} new listings')
+                    print(f'🎯 Platform breakdown:')
+                    for platform, count in platforms.items():
+                        print(f'   - {platform}: {count} listings')
+                    
+                    # Check for duplicates in recent data
+                    urls = [record['listing_url'] for record in data if record.get('listing_url')]
+                    unique_urls = len(set(urls))
+                    duplicate_rate = ((len(urls) - unique_urls) / max(len(urls), 1)) * 100
+                    
+                    if duplicate_rate < 5:
+                        print(f'✅ Duplicate prevention: WORKING ({duplicate_rate:.1f}% duplicate rate)')
+                    else:
+                        print(f'⚠️ Duplicate prevention: NEEDS ATTENTION ({duplicate_rate:.1f}% duplicate rate)')
+                else:
+                    print(f'⚠️ System Health: NO RECENT ACTIVITY')
+                    print(f'📊 No new listings in the last 4 hours')
+                    print(f'🔧 Check if scanners are running properly')
+            else:
+                print(f'❌ Health check failed: HTTP {response.status_code}')
+        except Exception as e:
+            print(f'❌ Health check error: {e}')
+        "
+
+  daily-coverage-analysis:
+    needs: comprehensive-scan
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 0 * * *' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Analyze daily keyword coverage
+      run: |
+        echo "# Daily Keyword Coverage Analysis - $(date)" > daily_analysis.md
+        echo "" >> daily_analysis.md
+        
+        # Calculate expected daily coverage
+        TOTAL_KEYWORDS=1000  # Approximate from comprehensive_endangered_keywords.py
+        RUNS_PER_DAY=12      # Every 2 hours
+        GROUPS_PER_RUN=3     # 3 parallel groups
+        BATCH_SIZE=${{ github.event.inputs.batch_size || '30' }}
+        
+        KEYWORDS_PER_RUN=$((GROUPS_PER_RUN * BATCH_SIZE))
+        KEYWORDS_PER_DAY=$((RUNS_PER_DAY * KEYWORDS_PER_RUN))
+        
+        echo "## Coverage Projections:" >> daily_analysis.md
+        echo "- **Total Keywords Available:** $TOTAL_KEYWORDS" >> daily_analysis.md
+        echo "- **Runs per Day:** $RUNS_PER_DAY" >> daily_analysis.md
+        echo "- **Scanner Groups per Run:** $GROUPS_PER_RUN" >> daily_analysis.md
+        echo "- **Keywords per Group:** $BATCH_SIZE" >> daily_analysis.md
+        echo "- **Keywords per Run:** $KEYWORDS_PER_RUN" >> daily_analysis.md
+        echo "- **Keywords per Day:** $KEYWORDS_PER_DAY" >> daily_analysis.md
+        echo "" >> daily_analysis.md
+        
+        # Calculate coverage percentage
+        if [ $KEYWORDS_PER_DAY -ge $TOTAL_KEYWORDS ]; then
+          COVERAGE_PERCENT=100
+          CYCLES_PER_DAY=$(echo "scale=1; $KEYWORDS_PER_DAY / $TOTAL_KEYWORDS" | bc)
+          echo "✅ **Full Coverage:** $CYCLES_PER_DAY complete cycles per day" >> daily_analysis.md
+        else
+          COVERAGE_PERCENT=$(echo "scale=1; $KEYWORDS_PER_DAY * 100 / $TOTAL_KEYWORDS" | bc)
+          DAYS_FOR_FULL_CYCLE=$(echo "scale=1; $TOTAL_KEYWORDS / $KEYWORDS_PER_DAY" | bc)
+          echo "📊 **Partial Coverage:** ${COVERAGE_PERCENT}% per day" >> daily_analysis.md
+          echo "⏰ **Full Cycle Time:** $DAYS_FOR_FULL_CYCLE days" >> daily_analysis.md
+        fi
+        
+        echo "" >> daily_analysis.md
+        echo "## Performance Targets:" >> daily_analysis.md
+        echo "- **Conservative Target:** 10,000+ listings/day" >> daily_analysis.md
+        echo "- **Optimistic Target:** 50,000+ listings/day" >> daily_analysis.md
+        echo "- **Maximum Capacity:** 100,000+ listings/day" >> daily_analysis.md
+        
+        cat daily_analysis.md

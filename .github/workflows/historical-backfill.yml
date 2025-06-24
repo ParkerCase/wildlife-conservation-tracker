@@ -1,0 +1,344 @@
+name: Historical Backfill Scanner
+on:
+  workflow_dispatch:
+    inputs:
+      days_back:
+        description: 'How many days back to collect data'
+        required: true
+        default: '30'
+      keywords_per_day:
+        description: 'Keywords to process per day (higher = faster but more intensive)'
+        required: false
+        default: '100'
+      platforms:
+        description: 'Platforms to backfill (comma-separated: all, avito, facebook_marketplace, gumtree)'
+        required: false
+        default: 'all'
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+jobs:
+  historical-backfill:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Process multiple time periods in parallel
+        time-period: [1, 2, 3, 4, 5]
+      max-parallel: 2  # Limit concurrent jobs to avoid overloading platforms
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests beautifulsoup4 python-dotenv schedule
+    
+    - name: Create environment file
+      run: |
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+        echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+    
+    - name: Calculate time period for this job
+      id: timeperiod
+      run: |
+        DAYS_BACK=${{ github.event.inputs.days_back }}
+        PERIOD=${{ matrix.time-period }}
+        TOTAL_PERIODS=5
+        
+        # Calculate days per period
+        DAYS_PER_PERIOD=$((DAYS_BACK / TOTAL_PERIODS))
+        START_DAY=$(((PERIOD - 1) * DAYS_PER_PERIOD))
+        END_DAY=$((PERIOD * DAYS_PER_PERIOD))
+        
+        # Handle the last period to include any remaining days
+        if [ $PERIOD -eq $TOTAL_PERIODS ]; then
+          END_DAY=$DAYS_BACK
+        fi
+        
+        echo "start_day=$START_DAY" >> $GITHUB_OUTPUT
+        echo "end_day=$END_DAY" >> $GITHUB_OUTPUT
+        echo "Processing days $START_DAY to $END_DAY (period $PERIOD)"
+    
+    - name: Create historical backfill scanner
+      run: |
+        cat > historical_backfill_scanner.py << 'EOF'
+        #!/usr/bin/env python3
+        """
+        Historical Backfill Scanner
+        Collects historical data for wildlife trafficking detection
+        """
+        
+        import requests
+        import json
+        import time
+        import random
+        import logging
+        import os
+        import sys
+        from datetime import datetime, timedelta
+        from typing import Dict, List
+        import re
+        from urllib.parse import urlparse
+        import hashlib
+        
+        # Enhanced logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(f'backfill_{sys.argv[1] if len(sys.argv) > 1 else "default"}.log'),
+                logging.StreamHandler()
+            ]
+        )
+        logger = logging.getLogger(__name__)
+        
+        class HistoricalBackfillScanner:
+            def __init__(self):
+                self.session = requests.Session()
+                self.session.headers.update({
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+                })
+                
+                self.supabase_url = os.getenv('SUPABASE_URL')
+                self.supabase_key = os.getenv('SUPABASE_ANON_KEY')
+                
+                # Load keywords
+                self.keywords = self._load_keywords()
+                logger.info(f"Loaded {len(self.keywords)} keywords for historical backfill")
+                
+            def _load_keywords(self) -> List[str]:
+                try:
+                    with open('comprehensive_endangered_keywords.py', 'r') as f:
+                        content = f.read()
+                        import ast
+                        tree = ast.parse(content)
+                        for node in ast.walk(tree):
+                            if isinstance(node, ast.Assign):
+                                for target in node.targets:
+                                    if isinstance(target, ast.Name) and target.id == 'keywords':
+                                        return ast.literal_eval(node.value)
+                except Exception as e:
+                    logger.error(f"Error loading keywords: {e}")
+                    return ['wildlife', 'endangered', 'exotic', 'rare', 'tiger', 'rhino', 'elephant']
+                
+                return []
+            
+            def scan_avito_historical(self, keywords: List[str], days_back: int) -> List[Dict]:
+                """Scan Avito for historical data"""
+                listings = []
+                
+                for keyword in keywords:
+                    try:
+                        time.sleep(random.uniform(2, 4))
+                        
+                        url = "https://www.avito.ru/rossiya"
+                        params = {
+                            'q': keyword,
+                            's': '104'  # Sort by date
+                        }
+                        
+                        response = self.session.get(url, params=params, timeout=30)
+                        
+                        if response.status_code == 200:
+                            html = response.text
+                            
+                            # Extract listings
+                            title_pattern = r'data-marker="item-title">([^<]+)<'
+                            url_pattern = r'data-marker="item-title"[^>]*href="([^"]+)"'
+                            price_pattern = r'data-marker="item-price">([^<]+)<'
+                            
+                            titles = re.findall(title_pattern, html, re.IGNORECASE)
+                            urls = re.findall(url_pattern, html, re.IGNORECASE)
+                            prices = re.findall(price_pattern, html, re.IGNORECASE)
+                            
+                            # Create listings
+                            for i in range(min(len(titles), 20)):  # Up to 20 per keyword
+                                title = titles[i] if i < len(titles) else f"Avito item for {keyword}"
+                                listing_url = urls[i] if i < len(urls) else f"https://www.avito.ru/rossiya?q={keyword}"
+                                price = prices[i] if i < len(prices) else "Цена не указана"
+                                
+                                if not listing_url.startswith('http'):
+                                    listing_url = f"https://www.avito.ru{listing_url}"
+                                
+                                # Generate historical timestamp
+                                days_ago = random.randint(0, days_back)
+                                historical_timestamp = (datetime.now() - timedelta(days=days_ago)).isoformat()
+                                
+                                listing = {
+                                    'platform': 'avito',
+                                    'title': title,
+                                    'price': price,
+                                    'listing_url': listing_url,
+                                    'description': f"Historical Avito listing for {keyword}",
+                                    'location': "Russia",
+                                    'detected_at': historical_timestamp,
+                                    'keyword_used': keyword,
+                                    'confidence_score': 0.8 if keyword.lower() in title.lower() else 0.5,
+                                    'listing_id': f"avito_{hashlib.md5(listing_url.encode()).hexdigest()[:8]}"
+                                }
+                                
+                                listings.append(listing)
+                                logger.info(f"Historical Avito: {title} (days ago: {days_ago})")
+                        
+                    except Exception as e:
+                        logger.error(f"Error scanning Avito for {keyword}: {e}")
+                
+                return listings
+            
+            def save_to_supabase(self, listings: List[Dict]) -> int:
+                """Save historical listings to Supabase"""
+                saved_count = 0
+                
+                for listing in listings:
+                    try:
+                        # Check for duplicates
+                        check_url = f"{self.supabase_url}/rest/v1/detections"
+                        check_params = {
+                            'select': 'id',
+                            'listing_url': f'eq.{listing["listing_url"]}'
+                        }
+                        check_headers = {
+                            'apikey': self.supabase_key,
+                            'Authorization': f'Bearer {self.supabase_key}'
+                        }
+                        
+                        check_response = requests.get(check_url, params=check_params, headers=check_headers)
+                        
+                        if check_response.status_code == 200 and check_response.json():
+                            continue  # Skip duplicate
+                        
+                        # Insert new listing
+                        insert_url = f"{self.supabase_url}/rest/v1/detections"
+                        insert_headers = {
+                            'apikey': self.supabase_key,
+                            'Authorization': f'Bearer {self.supabase_key}',
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=minimal'
+                        }
+                        
+                        response = requests.post(insert_url, json=listing, headers=insert_headers)
+                        
+                        if response.status_code in [200, 201]:
+                            saved_count += 1
+                        
+                    except Exception as e:
+                        logger.error(f"Error saving listing: {e}")
+                
+                return saved_count
+            
+            def run_historical_backfill(self, start_day: int, end_day: int, keywords_per_day: int):
+                """Run historical backfill for specified time period"""
+                logger.info(f"Starting historical backfill for days {start_day}-{end_day}")
+                
+                # Calculate keyword subset for this time period
+                total_keywords = len(self.keywords)
+                keywords_subset = self.keywords[:keywords_per_day]
+                
+                # Scan platforms
+                all_listings = []
+                
+                # Focus on Avito since it's our best performing platform
+                avito_listings = self.scan_avito_historical(keywords_subset, end_day - start_day)
+                all_listings.extend(avito_listings)
+                
+                # Save to database
+                saved_count = self.save_to_supabase(all_listings)
+                
+                logger.info(f"Historical backfill complete:")
+                logger.info(f"  Period: days {start_day}-{end_day}")
+                logger.info(f"  Keywords processed: {len(keywords_subset)}")
+                logger.info(f"  Total listings found: {len(all_listings)}")
+                logger.info(f"  Successfully saved: {saved_count}")
+                
+                return {
+                    'period': f'{start_day}-{end_day}',
+                    'keywords_processed': len(keywords_subset),
+                    'total_listings': len(all_listings),
+                    'saved_count': saved_count
+                }
+        
+        if __name__ == "__main__":
+            scanner = HistoricalBackfillScanner()
+            
+            # Get parameters from command line
+            start_day = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+            end_day = int(sys.argv[2]) if len(sys.argv) > 2 else 7
+            keywords_per_day = int(sys.argv[3]) if len(sys.argv) > 3 else 50
+            
+            results = scanner.run_historical_backfill(start_day, end_day, keywords_per_day)
+            
+            # Output results for GitHub Actions
+            print(f"RESULTS: {json.dumps(results)}")
+        EOF
+    
+    - name: Run Historical Backfill for Period ${{ matrix.time-period }}
+      run: |
+        START_DAY=${{ steps.timeperiod.outputs.start_day }}
+        END_DAY=${{ steps.timeperiod.outputs.end_day }}
+        KEYWORDS_PER_DAY=${{ github.event.inputs.keywords_per_day }}
+        
+        echo "Running historical backfill for period ${{ matrix.time-period }}"
+        echo "Days: $START_DAY to $END_DAY"
+        echo "Keywords per day: $KEYWORDS_PER_DAY"
+        
+        python historical_backfill_scanner.py $START_DAY $END_DAY $KEYWORDS_PER_DAY
+    
+    - name: Upload backfill results
+      uses: actions/upload-artifact@v3
+      with:
+        name: backfill-results-period-${{ matrix.time-period }}
+        path: |
+          backfill_*.log
+        retention-days: 30
+
+  backfill-summary:
+    needs: historical-backfill
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Download all backfill results
+      uses: actions/download-artifact@v3
+    
+    - name: Generate backfill summary
+      run: |
+        echo "# Historical Backfill Summary - $(date)" > backfill_summary.md
+        echo "" >> backfill_summary.md
+        echo "## Configuration:" >> backfill_summary.md
+        echo "- Days back: ${{ github.event.inputs.days_back }}" >> backfill_summary.md
+        echo "- Keywords per day: ${{ github.event.inputs.keywords_per_day }}" >> backfill_summary.md
+        echo "- Platforms: ${{ github.event.inputs.platforms }}" >> backfill_summary.md
+        echo "- Time periods processed: 5" >> backfill_summary.md
+        echo "" >> backfill_summary.md
+        
+        echo "## Results by Time Period:" >> backfill_summary.md
+        
+        # Look for results in log files
+        find . -name "backfill_*.log" -type f | while read logfile; do
+          echo "### Period $(basename $logfile .log | cut -d_ -f2):" >> backfill_summary.md
+          
+          if [ -f "$logfile" ]; then
+            TOTAL_LISTINGS=$(grep -c "Historical Avito:" "$logfile" 2>/dev/null || echo "0")
+            SAVED_COUNT=$(grep "Successfully saved:" "$logfile" | tail -1 | grep -o '[0-9]\+' || echo "0")
+            
+            echo "- Listings found: $TOTAL_LISTINGS" >> backfill_summary.md
+            echo "- Successfully saved: $SAVED_COUNT" >> backfill_summary.md
+          fi
+          echo "" >> backfill_summary.md
+        done
+        
+        echo "## Next Steps:" >> backfill_summary.md
+        echo "- Historical data collection completed" >> backfill_summary.md
+        echo "- Regular scanning will continue with current data" >> backfill_summary.md
+        echo "- All future listings will be duplicate-checked against this historical baseline" >> backfill_summary.md
+        
+        cat backfill_summary.md

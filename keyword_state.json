@@ -1,0 +1,14 @@
+{
+  "facebook_marketplace": {
+    "current_index": 3,
+    "completed_cycles": 0
+  },
+  "gumtree": {
+    "current_index": 3,
+    "completed_cycles": 0
+  },
+  "avito": {
+    "current_index": 3,
+    "completed_cycles": 0
+  }
+}

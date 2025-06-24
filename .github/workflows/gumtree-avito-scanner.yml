@@ -1,0 +1,181 @@
+name: WildGuard Gumtree & Avito Scanner
+
+on:
+  schedule:
+    # Run every 3 hours, offset from main scanner
+    - cron: '30 */3 * * *'
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: 'Keywords per platform per run'
+        required: false
+        default: '25'
+      test_mode:
+        description: 'Run in test mode'
+        required: false
+        default: 'false'
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+jobs:
+  gumtree-avito-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    strategy:
+      matrix:
+        platform: ['gumtree', 'avito']
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests python-dotenv beautifulsoup4
+    
+    - name: Create environment file
+      run: |
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+        echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+    
+    - name: Run ${{ matrix.platform }} Scanner
+      run: |
+        BATCH_SIZE=${{ github.event.inputs.batch_size || '25' }}
+        TEST_MODE="${{ github.event.inputs.test_mode || 'false' }}"
+        
+        echo "🔍 Starting ${{ matrix.platform }} scanner..."
+        echo "📊 Batch size: $BATCH_SIZE"
+        echo "🧪 Test mode: $TEST_MODE"
+        
+        # Build command
+        CMD="python fixed_gumtree_avito_scanner.py --platform ${{ matrix.platform }} --batch-size $BATCH_SIZE"
+        
+        if [ "$TEST_MODE" = "true" ]; then
+          CMD="$CMD --test-mode"
+        fi
+        
+        echo "🚀 Running: $CMD"
+        eval $CMD
+    
+    - name: Upload scan results
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.platform }}-scan-results-${{ github.run_number }}
+        path: |
+          scanner.log
+          url_cache.json
+        retention-days: 3
+    
+    - name: Generate performance report
+      run: |
+        echo "# ${{ matrix.platform }} Scanner Performance Report" > ${{ matrix.platform }}_report.md
+        echo "- **Timestamp:** $(date)" >> ${{ matrix.platform }}_report.md
+        echo "- **Platform:** ${{ matrix.platform }}" >> ${{ matrix.platform }}_report.md
+        echo "- **Batch Size:** ${{ github.event.inputs.batch_size || '25' }}" >> ${{ matrix.platform }}_report.md
+        echo "" >> ${{ matrix.platform }}_report.md
+        
+        if [ -f scanner.log ]; then
+          LISTINGS_FOUND=$(grep -c "${{ matrix.platform }}: Found" scanner.log || echo "0")
+          SAVED_COUNT=$(grep -c "Saved:" scanner.log || echo "0")
+          DUPLICATES_FILTERED=$(grep -c "Skipping duplicate" scanner.log || echo "0")
+          
+          echo "## Results:" >> ${{ matrix.platform }}_report.md
+          echo "- **Listings Found:** $LISTINGS_FOUND" >> ${{ matrix.platform }}_report.md
+          echo "- **Successfully Saved:** $SAVED_COUNT" >> ${{ matrix.platform }}_report.md
+          echo "- **Duplicates Filtered:** $DUPLICATES_FILTERED" >> ${{ matrix.platform }}_report.md
+          
+          if [ $LISTINGS_FOUND -gt 0 ]; then
+            SAVE_RATE=$(echo "scale=1; $SAVED_COUNT * 100 / $LISTINGS_FOUND" | bc || echo "0")
+            echo "- **Save Rate:** ${SAVE_RATE}%" >> ${{ matrix.platform }}_report.md
+            echo "- **Status:** ✅ Working" >> ${{ matrix.platform }}_report.md
+          else
+            echo "- **Status:** ⚠️ No results found" >> ${{ matrix.platform }}_report.md
+          fi
+        fi
+        
+        cat ${{ matrix.platform }}_report.md
+
+  health-check:
+    needs: gumtree-avito-scan
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Multi-platform system health check
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      run: |
+        echo "🔍 Checking 7-Platform WildGuard AI System Health..."
+        
+        # Check recent activity across all platforms
+        python3 -c "
+        import requests
+        import os
+        from datetime import datetime, timedelta
+        
+        url = f'{os.getenv(\"SUPABASE_URL\")}/rest/v1/detections'
+        headers = {
+            'apikey': os.getenv('SUPABASE_ANON_KEY'), 
+            'Authorization': f'Bearer {os.getenv(\"SUPABASE_ANON_KEY\")}'
+        }
+        
+        # Get records from last 6 hours
+        recent_time = (datetime.now() - timedelta(hours=6)).isoformat()
+        params = {
+            'select': 'platform,detected_at',
+            'detected_at': f'gte.{recent_time}',
+            'order': 'detected_at.desc',
+            'limit': '1000'
+        }
+        
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                total_recent = len(data)
+                
+                # Platform breakdown
+                platforms = {}
+                for record in data:
+                    platform = record.get('platform', 'unknown')
+                    platforms[platform] = platforms.get(platform, 0) + 1
+                
+                print(f'🎯 7-Platform System Status (Last 6 Hours):')
+                print(f'   Total new listings: {total_recent}')
+                print(f'   Platform breakdown:')
+                
+                expected_platforms = ['ebay', 'craigslist', 'olx', 'marktplaats', 'gumtree', 'avito']
+                active_platforms = 0
+                
+                for platform in expected_platforms:
+                    count = platforms.get(platform, 0)
+                    status = '✅ Active' if count > 0 else '⚠️ Inactive'
+                    print(f'     {platform}: {count} listings {status}')
+                    if count > 0:
+                        active_platforms += 1
+                
+                print(f'')
+                print(f'📊 System Health: {active_platforms}/6 platforms active')
+                
+                if active_platforms >= 4:
+                    print(f'✅ System Status: HEALTHY')
+                elif active_platforms >= 2:
+                    print(f'⚠️ System Status: PARTIAL')
+                else:
+                    print(f'❌ System Status: NEEDS ATTENTION')
+                    
+            else:
+                print(f'❌ Health check failed: HTTP {response.status_code}')
+        except Exception as e:
+            print(f'❌ Health check error: {e}')
+        "

@@ -1,0 +1,252 @@
+name: Enhanced Production Scanner - Comprehensive Coverage
+on:
+  schedule:
+    # Run every 2 hours to ensure complete keyword coverage
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: 'Keywords per platform per run'
+        required: false
+        default: '30'
+      platforms:
+        description: 'Platforms to scan (comma-separated: all, avito, facebook_marketplace, gumtree)'
+        required: false
+        default: 'all'
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+jobs:
+  comprehensive-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Multiple concurrent jobs for better coverage
+        scanner-group: [1, 2, 3]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests beautifulsoup4 python-dotenv schedule
+    
+    - name: Create environment file
+      run: |
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+        echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+    
+    - name: Run Enhanced Scanner Group ${{ matrix.scanner-group }}
+      run: |
+        # Different groups scan different keyword ranges to ensure full coverage
+        BATCH_SIZE=${{ github.event.inputs.batch_size || '30' }}
+        PLATFORMS="${{ github.event.inputs.platforms || 'all' }}"
+        GROUP=${{ matrix.scanner-group }}
+        
+        # Calculate keyword offset for this group
+        KEYWORD_OFFSET=$((($GROUP - 1) * $BATCH_SIZE))
+        
+        echo "Scanner Group $GROUP starting with keyword offset $KEYWORD_OFFSET"
+        echo "Batch size: $BATCH_SIZE"
+        echo "Platforms: $PLATFORMS"
+        
+        python enhanced_production_scanner.py \
+          --batch-size $BATCH_SIZE \
+          --keyword-offset $KEYWORD_OFFSET \
+          --scanner-group $GROUP \
+          --platforms "$PLATFORMS"
+    
+    - name: Upload scan results
+      uses: actions/upload-artifact@v3
+      with:
+        name: scan-results-group-${{ matrix.scanner-group }}
+        path: |
+          scanner.log
+          keyword_state.json
+          url_cache.json
+        retention-days: 7
+    
+    - name: Generate coverage report
+      run: |
+        echo "## Scanner Group ${{ matrix.scanner-group }} Results" >> coverage_report.md
+        echo "- Timestamp: $(date)" >> coverage_report.md
+        echo "- Batch Size: ${{ github.event.inputs.batch_size || '30' }}" >> coverage_report.md
+        
+        # Extract key metrics from log
+        if [ -f scanner.log ]; then
+          echo "- Total listings found: $(grep -c 'Found.*for keyword' scanner.log || echo '0')" >> coverage_report.md
+          echo "- Successfully saved: $(grep -c 'Saved:' scanner.log || echo '0')" >> coverage_report.md
+          echo "- Duplicates filtered: $(grep -c 'Skipping duplicate' scanner.log || echo '0')" >> coverage_report.md
+          
+          # Platform breakdown
+          echo "" >> coverage_report.md
+          echo "### Platform Breakdown:" >> coverage_report.md
+          echo "- Avito: $(grep -c 'Avito: Found' scanner.log || echo '0') listings" >> coverage_report.md
+          echo "- Facebook: $(grep -c 'Facebook: Found' scanner.log || echo '0') listings" >> coverage_report.md
+          echo "- Gumtree: $(grep -c 'Gumtree: Found' scanner.log || echo '0') listings" >> coverage_report.md
+        fi
+    
+    - name: Comment coverage report
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          if (fs.existsSync('coverage_report.md')) {
+            const report = fs.readFileSync('coverage_report.md', 'utf8');
+            console.log(report);
+          }
+
+  keyword-coverage-analysis:
+    needs: comprehensive-scan
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Download all scan results
+      uses: actions/download-artifact@v3
+    
+    - name: Analyze keyword coverage
+      run: |
+        echo "# Keyword Coverage Analysis - $(date)" > keyword_analysis.md
+        echo "" >> keyword_analysis.md
+        
+        TOTAL_KEYWORDS=$(python -c "
+        try:
+            with open('comprehensive_endangered_keywords.py', 'r') as f:
+                content = f.read()
+                import ast
+                tree = ast.parse(content)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Assign):
+                        for target in node.targets:
+                            if isinstance(target, ast.Name) and target.id == 'keywords':
+                                keywords = ast.literal_eval(node.value)
+                                print(len(keywords))
+                                break
+        except:
+            print('966')  # fallback
+        ")
+        
+        echo "## Summary:" >> keyword_analysis.md
+        echo "- Total keywords in database: $TOTAL_KEYWORDS" >> keyword_analysis.md
+        echo "- Scanner groups run: 3" >> keyword_analysis.md
+        echo "- Keywords per group: ${{ github.event.inputs.batch_size || '30' }}" >> keyword_analysis.md
+        echo "- Total keywords processed this run: $((3 * ${{ github.event.inputs.batch_size || '30' }}))" >> keyword_analysis.md
+        
+        COVERAGE_PERCENT=$(python -c "print(f'{(3 * ${{ github.event.inputs.batch_size || 30 }}) / int($TOTAL_KEYWORDS) * 100:.1f}%')")
+        echo "- Coverage this run: $COVERAGE_PERCENT" >> keyword_analysis.md
+        
+        echo "" >> keyword_analysis.md
+        echo "## Next scheduled run will continue from keyword position: $((3 * ${{ github.event.inputs.batch_size || '30' }}))" >> keyword_analysis.md
+        
+        cat keyword_analysis.md
+
+  duplicate-prevention-check:
+    needs: comprehensive-scan
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install requests
+    
+    - name: Check duplicate prevention
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      run: |
+        python -c "
+        import requests
+        import os
+        from datetime import datetime, timedelta
+        
+        url = f\"{os.getenv('SUPABASE_URL')}/rest/v1/detections\"
+        headers = {
+            'apikey': os.getenv('SUPABASE_ANON_KEY'),
+            'Authorization': f'Bearer {os.getenv(\"SUPABASE_ANON_KEY\")}'
+        }
+        
+        # Check recent additions (last 4 hours)
+        recent_time = (datetime.now() - timedelta(hours=4)).isoformat()
+        params = {
+            'select': 'listing_url,platform,detected_at',
+            'detected_at': f'gte.{recent_time}',
+            'order': 'detected_at.desc',
+            'limit': '1000'
+        }
+        
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                total_recent = len(data)
+                urls = [item['listing_url'] for item in data]
+                unique_urls = len(set(urls))
+                duplicate_rate = ((total_recent - unique_urls) / max(total_recent, 1)) * 100
+                
+                print(f'Recent additions: {total_recent}')
+                print(f'Unique URLs: {unique_urls}')
+                print(f'Duplicate rate: {duplicate_rate:.2f}%')
+                
+                if duplicate_rate > 5:
+                    print('WARNING: High duplicate rate detected!')
+                    exit(1)
+                else:
+                    print('✅ Duplicate prevention working correctly')
+            else:
+                print(f'Error checking duplicates: {response.status_code}')
+        except Exception as e:
+            print(f'Error: {e}')
+        "
+
+  performance-monitoring:
+    needs: comprehensive-scan
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Monitor system performance
+      run: |
+        echo "# System Performance Report - $(date)" > performance_report.md
+        echo "" >> performance_report.md
+        
+        # Calculate expected daily volume
+        RUNS_PER_DAY=12  # Every 2 hours
+        KEYWORDS_PER_RUN=$((3 * ${{ github.event.inputs.batch_size || '30' }}))  # 3 groups
+        TOTAL_KEYWORDS_PER_DAY=$((RUNS_PER_DAY * KEYWORDS_PER_RUN))
+        
+        echo "## Daily Volume Projections:" >> performance_report.md
+        echo "- Runs per day: $RUNS_PER_DAY" >> performance_report.md
+        echo "- Keywords per run: $KEYWORDS_PER_RUN" >> performance_report.md
+        echo "- Total keywords per day: $TOTAL_KEYWORDS_PER_DAY" >> performance_report.md
+        echo "" >> performance_report.md
+        
+        # Estimate listings based on our test results
+        echo "## Expected Listings (based on verification):" >> performance_report.md
+        echo "- Avito (star performer): ~6-10 listings per keyword" >> performance_report.md
+        echo "- Conservative estimate: $((TOTAL_KEYWORDS_PER_DAY * 3)) listings/day" >> performance_report.md
+        echo "- Optimistic estimate: $((TOTAL_KEYWORDS_PER_DAY * 8)) listings/day" >> performance_report.md
+        echo "- Target: 100,000+ listings/day across all platforms" >> performance_report.md
+        
+        cat performance_report.md

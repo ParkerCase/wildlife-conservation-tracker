@@ -1,0 +1,11 @@
+{
+  "start_time": "2025-06-24T13:08:31.987865",
+  "end_time": "2025-06-24T13:08:43.275139",
+  "duration_seconds": 11.287274,
+  "records_before": 1000,
+  "records_after": 564931,
+  "duplicates_identified": 61,
+  "duplicates_deleted": 61,
+  "unique_urls": 725,
+  "success_rate": 100.0
+}
