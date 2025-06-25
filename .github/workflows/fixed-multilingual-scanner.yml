@@ -61,16 +61,16 @@ jobs:
       run: |
         if [ -f "multilingual_wildlife_keywords.json" ]; then
           echo "✅ Multilingual keywords file found"
-          python3 -c "
+          python3 -c '
 import json
-with open('multilingual_wildlife_keywords.json', 'r') as f:
+with open("multilingual_wildlife_keywords.json", "r") as f:
     data = json.load(f)
-    total = sum(len(keywords) for keywords in data['keywords_by_language'].values())
-    print(f'📊 Total keywords: {total}')
-    print(f'🌍 Languages: {len(data[\"keywords_by_language\"])}')
-    for lang, keywords in data['keywords_by_language'].items():
-        print(f'  {lang}: {len(keywords)} keywords')
-"
+    total = sum(len(keywords) for keywords in data["keywords_by_language"].values())
+    print(f"📊 Total keywords: {total}")
+    print(f"🌍 Languages: {len(data[\"keywords_by_language\"])}")
+    for lang, keywords in data["keywords_by_language"].items():
+        print(f"  {lang}: {len(keywords)} keywords")
+'
         else
           echo "❌ Multilingual keywords file missing!"
           exit 1
