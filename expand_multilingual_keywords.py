@@ -11,14 +11,14 @@ import sys
 from typing import List, Dict
 import random
 
-# Install googletrans if not available
+# Install deep-translator if not available
 try:
-    from googletrans import Translator
+    from deep_translator import GoogleTranslator
 except ImportError:
-    print("Installing googletrans...")
+    print("Installing deep-translator...")
     import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "googletrans==4.0.0rc1"])
-    from googletrans import Translator
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "deep-translator>=1.11.4"])
+    from deep_translator import GoogleTranslator
 
 # Import existing keywords
 from comprehensive_endangered_keywords import ALL_ENDANGERED_SPECIES_KEYWORDS
@@ -102,30 +102,27 @@ TARGET_LANGUAGES = {
 }
 
 def quick_translate_batch(keywords: List[str], target_lang: str) -> List[str]:
-    """Quick translation with error handling"""
-    translator = Translator()
+    """Quick translation with error handling using deep-translator"""
+    translator = GoogleTranslator(source='en', target=target_lang)
     translated = []
     
     print(f"  Translating to {TARGET_LANGUAGES[target_lang]}...")
     
-    # Process in small batches
-    batch_size = 20
-    for i in range(0, len(keywords), batch_size):
-        batch = keywords[i:i + batch_size]
-        
+    # Process one by one (deep-translator handles single translations better)
+    for keyword in keywords:
         try:
-            results = translator.translate(batch, dest=target_lang, src='en')
+            result = translator.translate(keyword)
             
-            for result in results:
-                translated_text = result.text.lower().strip()
-                if translated_text and translated_text != result.origin.lower():
+            if result:
+                translated_text = result.lower().strip()
+                if translated_text and translated_text != keyword.lower():
                     translated.append(translated_text)
             
-            time.sleep(1)  # Rate limiting
+            time.sleep(0.1)  # Rate limiting
             
         except Exception as e:
-            print(f"    Warning: Batch translation error: {e}")
-            time.sleep(2)
+            print(f"    Warning: Translation error for '{keyword}': {e}")
+            time.sleep(0.5)
             continue
     
     print(f"    ✅ {len(translated)} translations completed")

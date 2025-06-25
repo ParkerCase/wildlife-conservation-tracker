@@ -13,5 +13,5 @@ lxml>=4.9.0
 python-json-logger>=2.0.7
 tenacity>=8.2.3
 
-# Multilingual support
-googletrans==4.0.0rc1
+# Multilingual support - using compatible alternative
+deep-translator>=1.11.4
