@@ -10,7 +10,7 @@ on:
         required: false
         default: "30"
       platforms:
-        description: "Platforms to scan (comma-separated: all, avito, facebook_marketplace, gumtree)"
+        description: "Platforms to scan (comma-separated: all, avito, facebook_marketplace, gumtree, olx)"
         required: false
         default: "all"
 
@@ -93,6 +93,7 @@ jobs:
             echo "- Avito: $(grep -c 'Avito: Found' scanner.log || echo '0') listings" >> coverage_report.md
             echo "- Facebook: $(grep -c 'Facebook: Found' scanner.log || echo '0') listings" >> coverage_report.md
             echo "- Gumtree: $(grep -c 'Gumtree: Found' scanner.log || echo '0') listings" >> coverage_report.md
+            echo "- OLX: $(grep -c 'OLX.*: Found' scanner.log || echo '0') listings" >> coverage_report.md
           fi
 
       - name: Comment coverage report

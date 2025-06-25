@@ -62,7 +62,7 @@ class KeywordStateManager:
         self.state_file = state_file
         self.platforms = [
             'ebay', 'craigslist', 'facebook', 'offerup', 'mercari',
-            'facebook_marketplace', 'gumtree', 'avito'
+            'facebook_marketplace', 'gumtree', 'avito', 'olx'
         ]
         self.state = self._load_state()
         
@@ -324,6 +324,95 @@ class EnhancedScanner:
         
         return listings
     
+    def scan_olx(self, keywords: List[str]) -> List[Listing]:
+        """Enhanced OLX scanner with regional focus"""
+        listings = []
+        
+        # OLX regional sites
+        olx_sites = [
+            ('olx.pl', 'Poland'),
+            ('olx.com.br', 'Brazil'), 
+            ('olx.com.co', 'Colombia')
+        ]
+        
+        for site_url, region in olx_sites[:2]:  # Limit to 2 regions for speed
+            for keyword in keywords[:4]:  # 4 keywords per region
+                try:
+                    time.sleep(random.uniform(2, 4))
+                    
+                    search_url = f"https://www.{site_url}/oferty/q-{keyword.replace(' ', '-')}/"
+                    
+                    response = self.session.get(search_url, timeout=30)
+                    
+                    if response.status_code == 200:
+                        html = response.text
+                        
+                        # OLX parsing patterns
+                        patterns = {
+                            'titles': [
+                                r'<h3[^>]*>([^<]+)</h3>',
+                                r'data-cy="listing-ad-title"[^>]*>([^<]+)<',
+                                r'class="title"[^>]*>([^<]+)<'
+                            ],
+                            'prices': [
+                                r'<p[^>]*class="[^"]*price[^"]*"[^>]*>([^<]+)</p>',
+                                r'data-testid="ad-price"[^>]*>([^<]+)<'
+                            ],
+                            'urls': [
+                                r'<a[^>]*href="(/oferta/[^"]+)"',
+                                r'href="(https://[^"]*olx[^"]+)"'
+                            ]
+                        }
+                        
+                        found_data = {}
+                        for data_type, pattern_list in patterns.items():
+                            found_data[data_type] = []
+                            for pattern in pattern_list:
+                                matches = re.findall(pattern, html, re.IGNORECASE)
+                                found_data[data_type].extend(matches)
+                        
+                        max_items = min(len(found_data['titles']), 8)
+                        for i in range(max_items):
+                            title = found_data['titles'][i] if i < len(found_data['titles']) else f"OLX {region} item for {keyword}"
+                            title = re.sub(r'<[^>]+>', '', title).strip()
+                            
+                            price = found_data['prices'][i] if i < len(found_data['prices']) else "Cena nie podana"
+                            price = re.sub(r'<[^>]+>', '', price).strip()
+                            
+                            if i < len(found_data['urls']):
+                                url = found_data['urls'][i]
+                                if not url.startswith('http'):
+                                    url = f"https://www.{site_url}{url}"
+                            else:
+                                url = search_url
+                            
+                            if title and url and len(title) > 3:
+                                if self.duplicate_filter.is_duplicate(url):
+                                    continue
+                                
+                                listing = Listing(
+                                    platform='olx',
+                                    title=title,
+                                    price=price,
+                                    url=url,
+                                    description=f"OLX {region} listing for {keyword}",
+                                    location=region,
+                                    timestamp=datetime.now().isoformat(),
+                                    keyword=keyword,
+                                    confidence_score=0.6 if keyword.lower() in title.lower() else 0.3
+                                )
+                                
+                                listings.append(listing)
+                                self.duplicate_filter.add_url(url)
+                                
+                                logger.info(f"OLX {region}: Found '{title}' for keyword '{keyword}'")
+                
+                except Exception as e:
+                    logger.error(f"OLX {region} error for keyword '{keyword}': {e}")
+                    continue
+        
+        return listings
+    
     def scan_gumtree(self, keywords: List[str]) -> List[Listing]:
         """Enhanced Gumtree scanner with updated selectors"""
         listings = []
@@ -564,6 +653,7 @@ class EnhancedScanner:
             'facebook_marketplace': [],
             'gumtree': [],
             'avito': [],
+            'olx': [],
             'total_listings': 0,
             'saved_count': 0,
             'duplicates_filtered': 0,
@@ -573,7 +663,8 @@ class EnhancedScanner:
         new_platforms = {
             'facebook_marketplace': self.scan_facebook_marketplace,
             'gumtree': self.scan_gumtree,
-            'avito': self.scan_avito
+            'avito': self.scan_avito,
+            'olx': self.scan_olx
         }
         
         for platform, scanner_func in new_platforms.items():
@@ -597,7 +688,7 @@ class EnhancedScanner:
         
         # Save all listings to Supabase
         all_listings = []
-        for platform_listings in [results['facebook_marketplace'], results['gumtree'], results['avito']]:
+        for platform_listings in [results['facebook_marketplace'], results['gumtree'], results['avito'], results['olx']]:
             all_listings.extend(platform_listings)
         
         results['saved_count'] = self.save_to_supabase(all_listings)
@@ -641,6 +732,7 @@ def main():
         scanner.keyword_manager.state['facebook_marketplace']['current_index'] = args.keyword_offset
         scanner.keyword_manager.state['gumtree']['current_index'] = args.keyword_offset
         scanner.keyword_manager.state['avito']['current_index'] = args.keyword_offset
+        scanner.keyword_manager.state['olx']['current_index'] = args.keyword_offset
         scanner.keyword_manager.save_state()
         logger.info(f"Applied keyword offset {args.keyword_offset} to all platforms")
     
@@ -657,7 +749,7 @@ def main():
     print(f"ENHANCED SCANNER GROUP {args.scanner_group} RESULTS")
     print("="*60)
     
-    for platform in ['facebook_marketplace', 'gumtree', 'avito']:
+    for platform in ['facebook_marketplace', 'gumtree', 'avito', 'olx']:
         coverage = results['keyword_coverage'][platform]
         print(f"\n{platform.upper()}:")
         print(f"  Listings found: {len(results[platform])}")
