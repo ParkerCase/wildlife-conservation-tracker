@@ -1,8 +1,8 @@
 name: Enhanced Production Scanner - Comprehensive Coverage
 on:
   schedule:
-    # Run every 2 hours to ensure complete keyword coverage
-    - cron: "0 */2 * * *"
+    # Run every 8 hours - COORDINATED SCHEDULE (no conflicts)
+    - cron: "0 3,11,19 * * *"  # 3am, 11am, 7pm UTC
   workflow_dispatch:
     inputs:
       batch_size:

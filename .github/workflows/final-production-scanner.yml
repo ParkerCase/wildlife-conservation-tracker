@@ -2,8 +2,8 @@ name: WildGuard FINAL Production Scanner - 196,600+ Daily
 
 on:
   schedule:
-    # Run every 3 hours for optimal 196,600+ daily capacity
-    - cron: "0 */3 * * *"
+    # Run every 8 hours - COORDINATED SCHEDULE (no conflicts)
+    - cron: "0 1,9,17 * * *"  # 1am, 9am, 5pm UTC
   workflow_dispatch: # Manual triggers
     inputs:
       scan_duration:
@@ -42,7 +42,7 @@ jobs:
         run: |
           echo "🚀 WILDGUARD AI - FINAL PRODUCTION SCANNER"
           echo "=========================================="
-          echo "🎯 DAILY CAPACITY TARGET: 196,600+ listings"
+          echo "🎯 DAILY CAPACITY TARGET: 150,000+ listings (HIGH VOLUME PLATFORMS)"
           echo ""
           echo "🌍 PLATFORM BREAKDOWN:"
           echo "  • eBay (Global)           → 25,000+/day"
@@ -64,8 +64,9 @@ jobs:
           echo "  • Anti-bot measures for Facebook"
           echo ""
           echo "📊 PERFORMANCE TARGETS:"
-          echo "  • 8 scans per day (every 3 hours)"
-          echo "  • ~24,000 listings per scan session"
+          echo "  • 3 scans per day (coordinated schedule)"
+          echo "  • ~50,000 listings per scan session"
+          echo "  • FOCUS: eBay, Avito, Marktplaats (proven performers)"
           echo "  • 98%+ unique results (duplicate prevention)"
           echo "  • Global coverage: 6 continents"
           echo "=========================================="

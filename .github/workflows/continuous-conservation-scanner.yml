@@ -2,8 +2,8 @@ name: WildGuard Continuous Conservation Scanner
 
 on:
   schedule:
-    # Run every 6 hours for maximum GitHub Actions efficiency
-    - cron: "0 */6 * * *"
+    # Run every 8 hours - COORDINATED SCHEDULE (no conflicts)
+    - cron: "0 5,13,21 * * *"  # 5am, 1pm, 9pm UTC
   workflow_dispatch: # Manual triggers
 
 jobs:
