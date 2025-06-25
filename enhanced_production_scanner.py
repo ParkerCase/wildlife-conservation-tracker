@@ -115,7 +115,7 @@ class KeywordStateManager:
             "current_index": current_index,
             "end_index": end_index,
             "total_keywords": total_keywords,
-            "progress_percent": (end_index / total_keywords) * 100,
+            "progress_percent": (end_index / max(total_keywords, 1)) * 100,  # Prevent division by zero
             "completed_cycles": self.state[platform]["completed_cycles"]
         }
         
@@ -211,22 +211,25 @@ class EnhancedScanner:
     def _load_keywords(self) -> List[str]:
         """Load keywords from comprehensive endangered keywords file"""
         try:
-            with open('comprehensive_endangered_keywords.py', 'r') as f:
-                content = f.read()
-                # Extract keywords list from the file
-                import ast
-                tree = ast.parse(content)
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.Assign):
-                        for target in node.targets:
-                            if isinstance(target, ast.Name) and target.id == 'keywords':
-                                return ast.literal_eval(node.value)
+            # Import the keywords directly
+            from comprehensive_endangered_keywords import ALL_ENDANGERED_SPECIES_KEYWORDS
+            logger.info(f"Successfully loaded {len(ALL_ENDANGERED_SPECIES_KEYWORDS)} keywords from file")
+            return ALL_ENDANGERED_SPECIES_KEYWORDS
+        except ImportError as e:
+            logger.error(f"Could not import keywords file: {e}")
         except Exception as e:
             logger.error(f"Error loading keywords: {e}")
-            # Fallback keywords
-            return ['wildlife', 'endangered', 'exotic', 'rare', 'tiger', 'rhino', 'elephant', 'pangolin']
         
-        return []
+        # Fallback keywords if import fails
+        fallback_keywords = [
+            'wildlife', 'endangered', 'exotic', 'rare', 'tiger', 'rhino', 'elephant', 'pangolin',
+            'ivory', 'horn', 'fur', 'pelt', 'bone', 'tooth', 'claw', 'feather', 'shell',
+            'leopard', 'lion', 'bear', 'wolf', 'shark', 'turtle', 'coral', 'parrot',
+            'eagle', 'falcon', 'crane', 'whale', 'dolphin', 'seal', 'otter', 'pangolin scale',
+            'tiger bone', 'rhino horn', 'elephant ivory', 'bear bile', 'shark fin'
+        ]
+        logger.warning(f"Using fallback keywords: {len(fallback_keywords)} keywords")
+        return fallback_keywords
     
     def scan_facebook_marketplace(self, keywords: List[str]) -> List[Listing]:
         """Enhanced Facebook Marketplace scanner with real result verification"""
