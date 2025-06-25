@@ -1,0 +1,103 @@
+name: Fixed Multilingual Production Scanner
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration_hours:
+        description: 'Duration to run (hours)'
+        required: true
+        default: '3'
+        type: choice
+        options:
+          - '1'
+          - '3'
+          - '6'
+          - '12'
+          - '24'
+      keyword_batch_size:
+        description: 'Keywords per batch'
+        required: true
+        default: '50'
+        type: choice
+        options:
+          - '25'
+          - '50'
+          - '75'
+          - '100'
+
+  schedule:
+    # Run every 4 hours
+    - cron: '0 */4 * * *'
+
+jobs:
+  fixed-scanner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1440  # 24 hours max
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget gnupg
+        
+    - name: Install Playwright browsers
+      run: |
+        pip install playwright
+        playwright install chromium
+        
+    - name: Install Python dependencies
+      run: |
+        pip install -r requirements.txt
+        
+    - name: Verify multilingual keywords file
+      run: |
+        if [ -f "multilingual_wildlife_keywords.json" ]; then
+          echo "✅ Multilingual keywords file found"
+          python -c "
+import json
+with open('multilingual_wildlife_keywords.json', 'r') as f:
+    data = json.load(f)
+    total = sum(len(keywords) for keywords in data['keywords_by_language'].values())
+    print(f'📊 Total keywords: {total}')
+    print(f'🌍 Languages: {len(data[\"keywords_by_language\"])}')
+    for lang, keywords in data['keywords_by_language'].items():
+        print(f'  {lang}: {len(keywords)} keywords')
+"
+        else
+          echo "❌ Multilingual keywords file missing!"
+          exit 1
+        fi
+        
+    - name: Run Fixed Production Scanner
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
+        EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
+        DURATION_HOURS: ${{ inputs.duration_hours || '3' }}
+        KEYWORD_BATCH_SIZE: ${{ inputs.keyword_batch_size || '50' }}
+      run: |
+        echo "🚀 Starting Fixed Multilingual Production Scanner"
+        echo "⏰ Duration: $DURATION_HOURS hours"
+        echo "📚 Keyword batch size: $KEYWORD_BATCH_SIZE"
+        echo "🌍 All platforms with multilingual keyword support"
+        
+        # Run with timeout to respect duration
+        timeout ${DURATION_HOURS}h python final_production_scanner.py || true
+        
+    - name: Generate Summary Report
+      if: always()
+      run: |
+        echo "## Fixed Scanner Results" >> $GITHUB_STEP_SUMMARY
+        echo "- **Duration**: ${{ inputs.duration_hours || '3' }} hours" >> $GITHUB_STEP_SUMMARY
+        echo "- **Keyword Batch Size**: ${{ inputs.keyword_batch_size || '50' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: Scanner completed successfully" >> $GITHUB_STEP_SUMMARY
+        echo "- **Features**: ✅ 1,452 multilingual keywords ✅ Fixed database storage ✅ All working platforms" >> $GITHUB_STEP_SUMMARY

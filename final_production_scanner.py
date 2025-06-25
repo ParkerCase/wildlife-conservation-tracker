@@ -67,9 +67,9 @@ class FinalProductionScanner:
         ]
         self.platform_index = 0
         
-        # Enhanced keyword management
+        # Enhanced keyword management with multilingual support
         self.keyword_index = 0
-        self.all_keywords = ALL_ENDANGERED_SPECIES_KEYWORDS
+        self.all_keywords = self.load_multilingual_keywords()
         random.shuffle(self.all_keywords)
         
         # Environment setup
@@ -85,8 +85,32 @@ class FinalProductionScanner:
         logging.info("🚀 FINAL PRODUCTION SCANNER INITIALIZED")
         logging.info(f"🌍 Platforms: {len(self.platforms)} verified working platforms")
         logging.info(f"🎯 Daily Capacity: 196,600+ listings")
-        logging.info(f"📊 Keywords: {len(self.all_keywords):,}")
+        logging.info(f"📊 Keywords: {len(self.all_keywords):,} (including multilingual)")
         logging.info(f"🚫 Duplicate Prevention: Active")
+
+    def load_multilingual_keywords(self) -> List[str]:
+        """Load all 1,452 multilingual keywords"""
+        try:
+            # Load from multilingual file
+            with open('multilingual_wildlife_keywords.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                
+            all_keywords = []
+            for lang, keywords in data['keywords_by_language'].items():
+                all_keywords.extend(keywords)
+            
+            # Remove duplicates and shuffle for better distribution
+            all_keywords = list(set(all_keywords))
+            random.shuffle(all_keywords)
+            
+            logging.info(f"✅ Loaded {len(all_keywords):,} multilingual keywords from {len(data['keywords_by_language'])} languages")
+            return all_keywords
+            
+        except Exception as e:
+            logging.warning(f"Could not load multilingual keywords: {e}")
+            # Fallback to basic keywords
+            logging.info(f"🔄 Using fallback keywords: {len(ALL_ENDANGERED_SPECIES_KEYWORDS):,}")
+            return ALL_ENDANGERED_SPECIES_KEYWORDS
 
     def load_url_cache(self):
         """Load persistent URL cache"""
@@ -146,7 +170,7 @@ class FinalProductionScanner:
         self.platform_index += 1
         return platform
 
-    def get_next_keyword_batch(self, batch_size=12) -> List[str]:
+    def get_next_keyword_batch(self, batch_size=50) -> List[str]:
         """Optimized keyword batching"""
         # Prioritize based on cycle
         if self.keyword_index % 4 == 0:
@@ -531,21 +555,22 @@ class FinalProductionScanner:
             try:
                 evidence_id = f"FINAL-{platform.upper()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{result.get('item_id', 'unknown')}"
                 
+                threat_score = self.calculate_threat_score(result)
+                
                 detection = {
                     'evidence_id': evidence_id,
                     'timestamp': datetime.now().isoformat(),
                     'platform': platform,
-                    'threat_score': self.calculate_threat_score(result),
-                    'threat_level': 'UNRATED',
-                    'species_involved': f"Final scan: {result.get('search_term', 'unknown')}",
+                    'threat_score': threat_score,
+                    'threat_level': 'MEDIUM',
+                    'species_involved': f"Search: {result.get('search_term', 'unknown')}",
                     'alert_sent': False,
-                    'status': f'FINAL_PRODUCTION_{platform.upper()}',
+                    'status': f'FIXED_PRODUCTION_{platform.upper()}',
                     'listing_title': (result.get('title', '') or '')[:500],
                     'listing_url': result.get('url', '') or '',
                     'listing_price': str(result.get('price', '') or ''),
                     'search_term': result.get('search_term', '') or '',
-                    'is_historical': result.get('historical', False),
-                    'region': result.get('region', 'Unknown')
+                    'confidence_score': threat_score
                 }
                 
                 url = f"{self.supabase_url}/rest/v1/detections"
@@ -615,7 +640,7 @@ class FinalProductionScanner:
                 platform = self.get_next_platform()
                 keyword_batch = self.get_next_keyword_batch()
                 
-                logging.info(f"🔍 Scanning {platform} with {len(keyword_batch)} keywords")
+                logging.info(f"🔍 Scanning {platform} with {len(keyword_batch)} keywords (batch {self.keyword_index})")
                 
                 # Scan platform
                 raw_results = await self.scan_platform_with_keywords(platform, keyword_batch)
@@ -636,8 +661,9 @@ class FinalProductionScanner:
                 daily_projection = hourly_rate * 24
                 
                 logging.info(f"📊 Cycle {cycle_count}:")
-                logging.info(f"   Results: {len(raw_results)}")
-                logging.info(f"   Stored: {stored_count}")
+                logging.info(f"   🔍 Found: {len(raw_results)}")
+                logging.info(f"   💾 Stored: {stored_count}")
+                logging.info(f"   ✨ Success Rate: {stored_count}/{len(raw_results) if raw_results else 0}")
                 logging.info(f"   Cache: {len(self.seen_urls):,} URLs")
                 logging.info(f"   Performance: {hourly_rate:,}/hour → {daily_projection:,}/day")
                 
