@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { Search, AlertTriangle, TrendingUp, Globe, Eye, Clock, Download, MapPin, Languages, Target, Shield, Activity, RefreshCw } from 'lucide-react';
+import { Search, AlertTriangle, Globe, Eye, Clock, Download, Languages, Target, Shield, Activity, RefreshCw } from 'lucide-react';
 import WildGuardDataService from '../services/supabaseService';
 
 const WildlifeDashboard = ({ onLogout }) => {
@@ -22,7 +22,7 @@ const WildlifeDashboard = ({ onLogout }) => {
   const [trendsTimeRange, setTrendsTimeRange] = useState('7d');
 
   // Fetch real data from Supabase using existing service
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     try {
       setData(prev => ({ ...prev, isLoading: true, error: null }));
 
@@ -40,13 +40,13 @@ const WildlifeDashboard = ({ onLogout }) => {
 
       // Get today's detections
       const today = new Date().toISOString().split('T')[0];
-      const { count: todayDetections, error: todayError } = await supabase
-        .from('detections')
-        .select('*', { count: 'exact', head: true })
-        .gte('timestamp', `${today}T00:00:00Z`);
+      const { count: todayDetections } = await supabase
+      .from('detections')
+      .select('*', { count: 'exact', head: true })
+      .gte('timestamp', `${today}T00:00:00Z`);
 
       // Get high priority alerts count
-      const { count: highPriorityAlerts, error: alertsError } = await supabase
+      const { count: highPriorityAlerts } = await supabase
         .from('detections')
         .select('*', { count: 'exact', head: true })
         .in('threat_level', ['HIGH', 'CRITICAL']);
@@ -72,7 +72,7 @@ const WildlifeDashboard = ({ onLogout }) => {
           }
 
           // High threat count for this platform
-          const { count: highThreat, error: threatError } = await supabase
+          const { count: highThreat } = await supabase
             .from('detections')
             .select('*', { count: 'exact', head: true })
             .ilike('platform', platform)
@@ -81,7 +81,7 @@ const WildlifeDashboard = ({ onLogout }) => {
           // Recent activity (last 24 hours) for this platform
           const yesterday = new Date();
           yesterday.setDate(yesterday.getDate() - 1);
-          const { count: recentActivity, error: recentError } = await supabase
+          const { count: recentActivity } = await supabase
             .from('detections')
             .select('*', { count: 'exact', head: true })
             .ilike('platform', platform)
@@ -152,7 +152,7 @@ const WildlifeDashboard = ({ onLogout }) => {
         activePlatforms: verifiedPlatforms
       };
 
-      const platformResult = { success: true, data: processedPlatforms };
+      // Platform result successfully processed
       
       // Get multilingual stats
       const multilingualResult = await WildGuardDataService.getMultilingualAnalytics();
@@ -195,7 +195,7 @@ const WildlifeDashboard = ({ onLogout }) => {
         error: error.message
       }));
     }
-  };
+  }, [activityTimeRange, trendsTimeRange]);
 
   // Get threat level distribution from database - OPTIMIZED for large dataset
   const getThreatLevelDistribution = async () => {
@@ -358,18 +358,7 @@ const WildlifeDashboard = ({ onLogout }) => {
     // Optional: Uncomment for manual auto-refresh (5 minutes)
     // const interval = setInterval(loadAllData, 300000);
     // return () => clearInterval(interval);
-  }, [activityTimeRange, trendsTimeRange]); // Reload when time ranges change
-
-  const getTimeAgo = (timestamp) => {
-    const now = new Date();
-    const time = new Date(timestamp);
-    const diffInMinutes = Math.floor((now - time) / (1000 * 60));
-    
-    if (diffInMinutes < 1) return 'Just now';
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
-    return `${Math.floor(diffInMinutes / 1440)}d ago`;
-  };
+  }, [loadAllData]); // Reload when loadAllData changes
 
   const generateReport = async () => {
     try {

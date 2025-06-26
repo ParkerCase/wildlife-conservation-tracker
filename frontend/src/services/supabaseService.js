@@ -41,15 +41,15 @@ const withTimeout = (promise, timeoutMs = 15000) => {
 };
 
 // Retry helper for failed queries
-const withRetry = async (fn, maxRetries = 2, delay = 1000) => {
+const withRetry = async (fn, maxRetries = 2, initialDelay = 1000) => {
   for (let i = 0; i <= maxRetries; i++) {
     try {
       return await fn();
     } catch (error) {
       if (i === maxRetries) throw error;
-      console.warn(`Attempt ${i + 1} failed, retrying in ${delay}ms...`, error.message);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      delay *= 2; // Exponential backoff
+      const currentDelay = initialDelay * Math.pow(2, i); // Exponential backoff
+      console.warn(`Attempt ${i + 1} failed, retrying in ${currentDelay}ms...`, error.message);
+      await new Promise(resolve => setTimeout(resolve, currentDelay));
     }
   }
 };
@@ -776,7 +776,7 @@ export class WildGuardDataService {
     try {
       console.log('Testing Supabase connection...');
       
-      const { data, error } = await withTimeout(
+      const { error } = await withTimeout(
         supabase
           .from('detections')
           .select('id')

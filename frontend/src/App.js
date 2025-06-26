@@ -17,7 +17,7 @@ const App = () => {
       try {
         const authData = localStorage.getItem('wildguard_auth');
         if (authData) {
-          const { token, expiry } = JSON.parse(authData);
+          const { expiry } = JSON.parse(authData);
           if (Date.now() < expiry) {
             console.log('User already authenticated, loading dashboard...');
             setIsAuthenticated(true);
