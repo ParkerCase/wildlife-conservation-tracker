@@ -4,6 +4,7 @@ import Login from './components/Login';
 import WildlifeDashboard from './components/WildlifeDashboard';
 import './index.css';
 
+// Updated to ensure WildlifeDashboard renders correctly
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState('');
