@@ -13,13 +13,52 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase environment variables. Please check your .env file.');
 }
 
-// Create Supabase client
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// Create Supabase client with optimized settings
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  db: {
+    schema: 'public',
+  },
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false
+  },
+  global: {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  },
+});
+
+// Query timeout helper
+const withTimeout = (promise, timeoutMs = 15000) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Query timeout')), timeoutMs)
+    )
+  ]);
+};
+
+// Retry helper for failed queries
+const withRetry = async (fn, maxRetries = 2, delay = 1000) => {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (i === maxRetries) throw error;
+      console.warn(`Attempt ${i + 1} failed, retrying in ${delay}ms...`, error.message);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2; // Exponential backoff
+    }
+  }
+};
 
 /**
- * WildGuard AI - Real Supabase Data Service
+ * WildGuard AI - Optimized Supabase Data Service
  * All functions return REAL data from the production database
  * SECURITY: All credentials are loaded from environment variables
+ * PERFORMANCE: Optimized queries with timeouts and retry logic
  * 
  * VERIFIED PLATFORMS (7 Total):
  * - ebay (Global marketplace)
@@ -34,53 +73,68 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 export class WildGuardDataService {
   
   /**
-   * Get real-time dashboard statistics with correct 7-platform data
+   * Get real-time dashboard statistics with optimized queries
    */
   static async getRealTimeStats() {
     try {
-      console.log('Fetching real-time stats from Supabase...');
+      console.log('Fetching optimized real-time stats from Supabase...');
       
-      // Get total detections
-      const { count: totalDetections, error: totalError } = await supabase
-        .from('detections')
-        .select('*', { count: 'exact', head: true });
+      // Use faster aggregate queries with timeout
+      const statsQuery = withTimeout(
+        withRetry(async () => {
+          // Get total count with optimization
+          const { count: totalDetections, error: totalError } = await supabase
+            .from('detections')
+            .select('*', { count: 'exact', head: true });
 
-      if (totalError) {
-        console.error('Error fetching total detections:', totalError);
-        throw totalError;
-      }
+          if (totalError) throw totalError;
 
-      // Get today's detections
-      const today = new Date().toISOString().split('T')[0];
-      const { count: todayDetections, error: todayError } = await supabase
-        .from('detections')
-        .select('*', { count: 'exact', head: true })
-        .gte('timestamp', `${today}T00:00:00Z`)
-        .lt('timestamp', `${today}T23:59:59Z`);
+          // Get today's count with date optimization
+          const today = new Date().toISOString().split('T')[0];
+          const { count: todayDetections, error: todayError } = await supabase
+            .from('detections')
+            .select('*', { count: 'exact', head: true })
+            .gte('timestamp', `${today}T00:00:00Z`)
+            .lt('timestamp', `${today}T23:59:59Z`);
 
-      if (todayError) {
-        console.error('Error fetching today detections:', todayError);
-      }
+          if (todayError) throw todayError;
 
-      // Get high-priority alerts (HIGH and CRITICAL)
-      const { count: highPriorityAlerts, error: alertsError } = await supabase
-        .from('detections')
-        .select('*', { count: 'exact', head: true })
-        .in('threat_level', ['HIGH', 'CRITICAL']);
+          return { totalDetections, todayDetections };
+        })
+      );
 
-      if (alertsError) {
-        console.error('Error fetching high priority alerts:', alertsError);
-      }
+      const { totalDetections, todayDetections } = await statsQuery;
 
-      // Get platform data - verify we have the correct 7 platforms
-      const { data: platformData, error: platformError } = await supabase
-        .from('detections')
-        .select('platform')
-        .not('platform', 'is', null);
-      
-      if (platformError) {
-        console.error('Error fetching platform data:', platformError);
-      }
+      // Get high-priority alerts count (optimized)
+      const alertsQuery = withTimeout(
+        withRetry(async () => {
+          const { count: highPriorityAlerts, error: alertsError } = await supabase
+            .from('detections')
+            .select('*', { count: 'exact', head: true })
+            .in('threat_level', ['HIGH', 'CRITICAL']);
+
+          if (alertsError) throw alertsError;
+          return highPriorityAlerts;
+        })
+      );
+
+      const highPriorityAlerts = await alertsQuery;
+
+      // Get platform data with limit to avoid large queries
+      const platformQuery = withTimeout(
+        withRetry(async () => {
+          const { data: platformData, error: platformError } = await supabase
+            .from('detections')
+            .select('platform')
+            .not('platform', 'is', null)
+            .limit(1000); // Limit for performance
+
+          if (platformError) throw platformError;
+          return platformData;
+        })
+      );
+
+      const platformData = await platformQuery;
 
       // Verified platforms based on scanner configuration
       const verifiedPlatforms = ['ebay', 'craigslist', 'olx', 'marktplaats', 'mercadolibre', 'gumtree', 'avito'];
@@ -92,28 +146,39 @@ export class WildGuardDataService {
       // Ensure we show all 7 platforms even if some don't have data yet
       const allPlatforms = [...new Set([...activePlatforms, ...verifiedPlatforms])].slice(0, 7);
 
-      // Get unique species/search terms
-      const { data: speciesData, error: speciesError } = await supabase
-        .from('detections')
-        .select('search_term')
-        .not('search_term', 'is', null);
-      
-      if (speciesError) {
-        console.error('Error fetching species data:', speciesError);
-      }
+      // Get unique species/search terms with limit
+      const speciesQuery = withTimeout(
+        withRetry(async () => {
+          const { data: speciesData, error: speciesError } = await supabase
+            .from('detections')
+            .select('search_term')
+            .not('search_term', 'is', null)
+            .limit(500); // Limit for performance
 
+          if (speciesError) throw speciesError;
+          return speciesData;
+        })
+      );
+
+      const speciesData = await speciesQuery;
       const uniqueSpecies = [...new Set(speciesData?.map(d => d.search_term) || [])];
 
-      // Get alerts sent (where alert_sent = true)
-      const { count: alertsSent, error: alertsSentError } = await supabase
-        .from('detections')
-        .select('*', { count: 'exact', head: true })
-        .eq('alert_sent', true)
-        .gte('timestamp', `${today}T00:00:00Z`);
+      // Get alerts sent count for today
+      const alertsSentQuery = withTimeout(
+        withRetry(async () => {
+          const today = new Date().toISOString().split('T')[0];
+          const { count: alertsSent, error: alertsSentError } = await supabase
+            .from('detections')
+            .select('*', { count: 'exact', head: true })
+            .eq('alert_sent', true)
+            .gte('timestamp', `${today}T00:00:00Z`);
 
-      if (alertsSentError) {
-        console.error('Error fetching alerts sent:', alertsSentError);
-      }
+          if (alertsSentError) throw alertsSentError;
+          return alertsSent;
+        })
+      );
+
+      const alertsSent = await alertsSentQuery;
 
       const stats = {
         totalDetections: totalDetections || 0,
@@ -154,16 +219,23 @@ export class WildGuardDataService {
   }
 
   /**
-   * Get platform activity with correct 7-platform distribution
+   * Get platform activity with optimized queries
    */
   static async getPlatformActivity() {
     try {
       console.log('Fetching platform activity from Supabase...');
       
-      const { data, error } = await supabase
-        .from('detections')
-        .select('platform, threat_level, timestamp')
-        .not('platform', 'is', null);
+      // Get platform data with aggregation in a single query
+      const { data, error } = await withTimeout(
+        withRetry(async () => {
+          return await supabase
+            .from('detections')
+            .select('platform, threat_level, timestamp')
+            .not('platform', 'is', null)
+            .order('timestamp', { ascending: false })
+            .limit(5000); // Reasonable limit for performance
+        })
+      );
 
       if (error) {
         console.error('Error fetching platform activity:', error);
@@ -233,18 +305,22 @@ export class WildGuardDataService {
   }
 
   /**
-   * Get recent high-priority alerts with enhanced data
+   * Get recent high-priority alerts with optimized queries
    */
   static async getRecentAlerts(limit = 10) {
     try {
       console.log('Fetching recent alerts from Supabase...');
       
-      const { data, error } = await supabase
-        .from('detections')
-        .select('*')
-        .in('threat_level', ['HIGH', 'CRITICAL', 'MEDIUM'])
-        .order('timestamp', { ascending: false })
-        .limit(limit);
+      const { data, error } = await withTimeout(
+        withRetry(async () => {
+          return await supabase
+            .from('detections')
+            .select('*')
+            .in('threat_level', ['HIGH', 'CRITICAL', 'MEDIUM'])
+            .order('timestamp', { ascending: false })
+            .limit(Math.min(limit, 50)); // Cap the limit for performance
+        })
+      );
 
       if (error) {
         console.error('Error fetching recent alerts:', error);
@@ -282,19 +358,24 @@ export class WildGuardDataService {
   }
 
   /**
-   * Get enhanced multilingual analytics reflecting 7-platform coverage
+   * Get enhanced multilingual analytics
    */
   static async getMultilingualAnalytics() {
     try {
       console.log('Fetching multilingual analytics from Supabase...');
       
-      // Get recent detections to analyze search terms
-      const { data, error } = await supabase
-        .from('detections')
-        .select('search_term, timestamp, platform')
-        .not('search_term', 'is', null)
-        .gte('timestamp', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-        .order('timestamp', { ascending: false });
+      // Get recent detections to analyze search terms with limit
+      const { data, error } = await withTimeout(
+        withRetry(async () => {
+          return await supabase
+            .from('detections')
+            .select('search_term, timestamp, platform')
+            .not('search_term', 'is', null)
+            .gte('timestamp', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+            .order('timestamp', { ascending: false })
+            .limit(1000); // Limit for performance
+        })
+      );
 
       if (error) {
         console.error('Error fetching multilingual data:', error);
@@ -405,7 +486,7 @@ export class WildGuardDataService {
   }
 
   /**
-   * Search evidence/detections with enhanced 7-platform filtering
+   * Search evidence/detections with optimized filtering
    */
   static async searchEvidence(searchTerm = '', filters = {}, limit = 20) {
     try {
@@ -441,9 +522,9 @@ export class WildGuardDataService {
         query = query.lte('timestamp', filters.dateTo);
       }
 
-      query = query.limit(limit);
+      query = query.limit(Math.min(limit, 100)); // Cap limit for performance
 
-      const { data, error } = await query;
+      const { data, error } = await withTimeout(query);
 
       if (error) {
         console.error('Error searching evidence:', error);
@@ -469,11 +550,13 @@ export class WildGuardDataService {
     try {
       console.log('Fetching detection details for ID:', detectionId);
       
-      const { data, error } = await supabase
-        .from('detections')
-        .select('*')
-        .or(`id.eq.${detectionId},evidence_id.eq.${detectionId}`)
-        .single();
+      const { data, error } = await withTimeout(
+        supabase
+          .from('detections')
+          .select('*')
+          .or(`id.eq.${detectionId},evidence_id.eq.${detectionId}`)
+          .single()
+      );
 
       if (error) {
         console.error('Error fetching detection details:', error);
@@ -493,17 +576,21 @@ export class WildGuardDataService {
   }
 
   /**
-   * Get performance metrics with 7-platform breakdown
+   * Get performance metrics with optimized queries
    */
   static async getPerformanceMetrics() {
     try {
       console.log('Fetching performance metrics from Supabase...');
       
-      const { data, error } = await supabase
-        .from('detections')
-        .select('timestamp, platform, threat_score')
-        .order('timestamp', { ascending: false })
-        .limit(1000);
+      const { data, error } = await withTimeout(
+        withRetry(async () => {
+          return await supabase
+            .from('detections')
+            .select('timestamp, platform, threat_score')
+            .order('timestamp', { ascending: false })
+            .limit(2000); // Reasonable limit for metrics
+        })
+      );
 
       if (error) {
         console.error('Error fetching performance metrics:', error);
@@ -590,7 +677,7 @@ export class WildGuardDataService {
   }
 
   /**
-   * Get threat trends over time with 7-platform breakdown
+   * Get threat trends over time with optimized queries
    */
   static async getThreatTrends(days = 7) {
     try {
@@ -600,11 +687,16 @@ export class WildGuardDataService {
       const startDate = new Date();
       startDate.setDate(endDate.getDate() - days);
 
-      const { data, error } = await supabase
-        .from('detections')
-        .select('timestamp, threat_level, search_term, platform')
-        .gte('timestamp', startDate.toISOString())
-        .order('timestamp', { ascending: true });
+      const { data, error } = await withTimeout(
+        withRetry(async () => {
+          return await supabase
+            .from('detections')
+            .select('timestamp, threat_level, search_term, platform')
+            .gte('timestamp', startDate.toISOString())
+            .order('timestamp', { ascending: true })
+            .limit(5000); // Reasonable limit for trends
+        })
+      );
 
       if (error) {
         console.error('Error fetching threat trends:', error);
@@ -676,16 +768,19 @@ export class WildGuardDataService {
   }
 
   /**
-   * Test database connection
+   * Test database connection with optimized query
    */
   static async testConnection() {
     try {
       console.log('Testing Supabase connection...');
       
-      const { data, error } = await supabase
-        .from('detections')
-        .select('count')
-        .limit(1);
+      const { data, error } = await withTimeout(
+        supabase
+          .from('detections')
+          .select('id')
+          .limit(1),
+        5000 // Short timeout for connection test
+      );
 
       if (error) {
         console.error('Supabase connection test failed:', error);
