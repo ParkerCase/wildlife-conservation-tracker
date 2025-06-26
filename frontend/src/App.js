@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield } from 'lucide-react';
 import Login from './components/Login';
-import EnhancedDashboard from './components/EnhancedDashboard';
+import WildlifeDashboard from './components/WildlifeDashboard';
 import './index.css';
 
 const App = () => {
@@ -121,7 +121,7 @@ const App = () => {
   // Show enhanced dashboard if authenticated with real Supabase data
   return (
     <div className="app">
-      <EnhancedDashboard onLogout={handleLogout} />
+      <WildlifeDashboard onLogout={handleLogout} />
     </div>
   );
 };

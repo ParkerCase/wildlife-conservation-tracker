@@ -120,14 +120,14 @@ export class WildGuardDataService {
 
       const highPriorityAlerts = await alertsQuery;
 
-      // Get platform data with limit to avoid large queries
+      // FIXED: Remove limit to get ALL platform data for accurate totals
       const platformQuery = withTimeout(
         withRetry(async () => {
           const { data: platformData, error: platformError } = await supabase
             .from('detections')
             .select('platform')
-            .not('platform', 'is', null)
-            .limit(1000); // Limit for performance
+            .not('platform', 'is', null);
+            // NO .limit() - get ALL data for accurate platform counts
 
           if (platformError) throw platformError;
           return platformData;
@@ -219,21 +219,21 @@ export class WildGuardDataService {
   }
 
   /**
-   * Get platform activity with optimized queries
+   * Get platform activity with NO LIMITS for accurate totals
    */
   static async getPlatformActivity() {
     try {
-      console.log('Fetching platform activity from Supabase...');
+      console.log('Fetching ALL platform activity from Supabase...');
       
-      // Get platform data with aggregation in a single query
+      // FIXED: Remove limit to get ALL data for accurate platform totals
       const { data, error } = await withTimeout(
         withRetry(async () => {
           return await supabase
             .from('detections')
             .select('platform, threat_level, timestamp')
             .not('platform', 'is', null)
-            .order('timestamp', { ascending: false })
-            .limit(5000); // Reasonable limit for performance
+            .order('timestamp', { ascending: false });
+            // NO .limit() - get ALL data for accurate totals
         })
       );
 
@@ -241,6 +241,8 @@ export class WildGuardDataService {
         console.error('Error fetching platform activity:', error);
         throw error;
       }
+
+      console.log('Total records fetched for platform analysis:', data?.length || 0);
 
       // Expected platforms
       const verifiedPlatforms = ['ebay', 'craigslist', 'olx', 'marktplaats', 'mercadolibre', 'gumtree', 'avito'];
