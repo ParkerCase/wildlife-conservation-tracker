@@ -1,0 +1,12 @@
+/static/js/*
+  Content-Type: text/javascript
+
+/static/css/*
+  Content-Type: text/css
+
+/manifest.json
+  Content-Type: application/json
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff

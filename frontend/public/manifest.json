@@ -1,6 +1,7 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "WildGuard AI",
+  "name": "WildGuard AI - Wildlife Protection Intelligence Platform",
+  "description": "Real-time wildlife trafficking detection across global marketplaces",
   "icons": [
     {
       "src": "favicon.ico",
@@ -20,6 +21,7 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#1e293b",
+  "background_color": "#0f172a",
+  "scope": "/"
 }

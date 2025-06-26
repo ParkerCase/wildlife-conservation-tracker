@@ -30,11 +30,11 @@
   },
   "scripts": {
     "start": "PORT=3000 react-scripts start",
-    "build": "react-scripts build",
+    "build": "GENERATE_SOURCEMAP=false react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "start:prod": "PORT=3000 REACT_APP_ENV=production react-scripts start",
-    "build:prod": "REACT_APP_ENV=production react-scripts build",
+    "build:prod": "GENERATE_SOURCEMAP=false REACT_APP_ENV=production react-scripts build",
     "serve": "npx serve -s build -l 3000",
     "analyze": "npx source-map-explorer 'build/static/js/*.js'",
     "lint": "eslint src --ext .js,.jsx",
