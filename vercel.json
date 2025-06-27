@@ -13,15 +13,17 @@
       "use": "@vercel/node"
     }
   ],
+  "rewrites": [
+    {
+      "source": "/api/webhook/ebay/(.*)",
+      "destination": "/api/webhook/ebay/$1"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ],
   "routes": [
-    {
-      "src": "/api/webhook/ebay/(.*)",
-      "dest": "/api/webhook/ebay/$1"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
     {
       "src": "/static/(.*)",
       "headers": {
@@ -54,6 +56,9 @@
       "maxDuration": 30
     },
     "api/webhook/ebay/test.js": {
+      "maxDuration": 30
+    },
+    "api/webhook/ebay/verification.js": {
       "maxDuration": 30
     }
   }
