@@ -69,6 +69,10 @@ const WildlifeDashboard = ({ onLogout }) => {
   const [selectedThreatCategory, setSelectedThreatCategory] = useState("all");
   const [humanReviewFilter, setHumanReviewFilter] = useState("all");
 
+  // Review modal state
+  const [selectedReviewItem, setSelectedReviewItem] = useState(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+
   // Updated platform list with new additions
   const allPlatforms = [
     "ebay",
@@ -126,7 +130,7 @@ const WildlifeDashboard = ({ onLogout }) => {
         .select("*", { count: "exact", head: true })
         .in("threat_level", ["HIGH", "CRITICAL"]);
 
-      // Enhanced: Get human review queue
+      // Enhanced: Get human review queue with proper filtering
       const { data: humanReviewQueue, error: reviewError } = await supabase
         .from("detections")
         .select("*")
@@ -136,13 +140,29 @@ const WildlifeDashboard = ({ onLogout }) => {
 
       if (reviewError) console.error("Review queue error:", reviewError);
 
-      // Enhanced: Get threat category distribution
+      // Enhanced: Get threat category distribution (fixed query)
       const { data: categoryStats, error: categoryError } = await supabase
         .from("detections")
         .select("threat_category")
-        .not("threat_category", "is", null);
+        .not("threat_category", "is", null)
+        .neq("threat_category", "");
 
       if (categoryError) console.error("Category stats error:", categoryError);
+
+      // Enhanced: Get specific human trafficking detections for verification
+      const { data: humanTraffickingData, error: htError } = await supabase
+        .from("detections")
+        .select("*")
+        .or("threat_category.eq.human_trafficking,threat_category.eq.both")
+        .order("threat_score", { ascending: false })
+        .limit(20);
+
+      if (htError) console.error("Human trafficking data error:", htError);
+      else
+        console.log(
+          "Human trafficking detections found:",
+          humanTraffickingData?.length || 0
+        );
 
       // Enhanced: Get Vision API statistics
       const { data: visionStats, error: visionError } = await supabase
@@ -604,6 +624,64 @@ const WildlifeDashboard = ({ onLogout }) => {
     setRefreshing(false);
   };
 
+  // Handle review item click
+  const handleReviewClick = (item) => {
+    setSelectedReviewItem(item);
+    setShowReviewModal(true);
+  };
+
+  // Handle review action
+  const handleReviewAction = async (action, itemId) => {
+    try {
+      const { supabase } = await import("../services/supabaseService");
+
+      let updateData = {};
+
+      switch (action) {
+        case "approve":
+          updateData = {
+            requires_human_review: false,
+            status: "REVIEWED_APPROVED",
+            review_timestamp: new Date().toISOString(),
+          };
+          break;
+        case "escalate":
+          updateData = {
+            threat_level: "CRITICAL",
+            status: "ESCALATED",
+            review_timestamp: new Date().toISOString(),
+          };
+          break;
+        case "false_positive":
+          updateData = {
+            requires_human_review: false,
+            threat_level: "LOW",
+            status: "FALSE_POSITIVE",
+            review_timestamp: new Date().toISOString(),
+          };
+          break;
+        default:
+          return;
+      }
+
+      const { error } = await supabase
+        .from("detections")
+        .update(updateData)
+        .eq("id", itemId);
+
+      if (error) {
+        console.error("Review action error:", error);
+      } else {
+        console.log(`Review action ${action} completed for item ${itemId}`);
+        // Refresh data to update the queue
+        await refreshData();
+        setShowReviewModal(false);
+      }
+    } catch (error) {
+      console.error("Review action failed:", error);
+    }
+  };
+
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);
@@ -961,7 +1039,10 @@ const WildlifeDashboard = ({ onLogout }) => {
                             )}
                           </p>
                         </div>
-                        <button className="bg-orange-600 hover:bg-orange-700 px-3 py-1 rounded text-sm transition-colors">
+                        <button
+                          onClick={() => handleReviewClick(item)}
+                          className="bg-orange-600 hover:bg-orange-700 px-3 py-1 rounded text-sm transition-colors"
+                        >
                           Review
                         </button>
                       </div>
@@ -1071,6 +1152,13 @@ const WildlifeDashboard = ({ onLogout }) => {
                 <Eye className="w-5 h-5" />
                 Enhanced Platform Monitoring Status
               </h3>
+              <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                <p className="text-blue-300 text-sm">
+                  🚀 All {data.platforms.length} platforms now feature enhanced
+                  intelligence with multi-stage filtering, advanced threat
+                  scoring, and AI-powered analysis for maximum accuracy.
+                </p>
+              </div>
               {data.isLoading ? (
                 <div className="animate-pulse space-y-3">
                   {[...Array(4)].map((_, i) => (
@@ -1334,8 +1422,8 @@ const WildlifeDashboard = ({ onLogout }) => {
                       {platform.isNew && (
                         <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
                           <p className="text-blue-300 text-sm">
-                            ✨ Enhanced platform with advanced threat detection
-                            capabilities
+                            🆕 Recently added platform with full enhanced
+                            intelligence integration
                           </p>
                         </div>
                       )}
@@ -1537,7 +1625,18 @@ const WildlifeDashboard = ({ onLogout }) => {
                             detections requiring immediate attention
                           </p>
                         </div>
-                        <button className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition-colors">
+                        <button
+                          onClick={() => {
+                            // Show all critical threats for review
+                            const criticalItems = data.humanReviewQueue.filter(
+                              (item) => item.threat_level === "CRITICAL"
+                            );
+                            if (criticalItems.length > 0) {
+                              handleReviewClick(criticalItems[0]);
+                            }
+                          }}
+                          className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition-colors"
+                        >
                           Review All
                         </button>
                       </div>
@@ -1555,7 +1654,14 @@ const WildlifeDashboard = ({ onLogout }) => {
                             for manual review
                           </p>
                         </div>
-                        <button className="bg-orange-600 hover:bg-orange-700 px-3 py-1 rounded text-sm transition-colors">
+                        <button
+                          onClick={() => {
+                            if (data.humanReviewQueue.length > 0) {
+                              handleReviewClick(data.humanReviewQueue[0]);
+                            }
+                          }}
+                          className="bg-orange-600 hover:bg-orange-700 px-3 py-1 rounded text-sm transition-colors"
+                        >
                           Review Queue
                         </button>
                       </div>
@@ -1573,7 +1679,20 @@ const WildlifeDashboard = ({ onLogout }) => {
                             analyses with `&gt;`80% confidence
                           </p>
                         </div>
-                        <button className="bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded text-sm transition-colors">
+                        <button
+                          onClick={() => {
+                            // Show high confidence vision detections for review
+                            const visionItems = data.humanReviewQueue.filter(
+                              (item) =>
+                                item.vision_analyzed &&
+                                item.confidence_score > 0.8
+                            );
+                            if (visionItems.length > 0) {
+                              handleReviewClick(visionItems[0]);
+                            }
+                          }}
+                          className="bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded text-sm transition-colors"
+                        >
                           View Images
                         </button>
                       </div>
@@ -1840,11 +1959,15 @@ const WildlifeDashboard = ({ onLogout }) => {
                   <ul className="space-y-2 text-sm text-slate-300">
                     <li>
                       • Enhanced threat detection with wildlife and human
-                      trafficking categories
+                      trafficking categories across ALL 9 platforms
                     </li>
                     <li>
                       • Google Vision AI integration for image analysis with
-                      confidence scoring
+                      confidence scoring on all platforms
+                    </li>
+                    <li>
+                      • Multi-stage filtering system eliminates false positives
+                      across all {data.platforms.length} monitored platforms
                     </li>
                     <li>
                       • Expand keyword database to improve detection coverage
@@ -1856,7 +1979,7 @@ const WildlifeDashboard = ({ onLogout }) => {
                     </li>
                     <li>
                       • Cross-platform correlation analysis to identify
-                      trafficking networks
+                      trafficking networks across all platforms
                     </li>
                     <li>
                       • Predictive models based on temporal patterns and
@@ -1867,8 +1990,9 @@ const WildlifeDashboard = ({ onLogout }) => {
                       usage
                     </li>
                     <li>
-                      • Enhanced platform coverage including Asian marketplaces
-                      (Taobao, AliExpress)
+                      • Universal enhanced platform coverage: eBay, Craigslist,
+                      OLX, Marktplaats, MercadoLibre, Gumtree, Avito, Taobao,
+                      AliExpress
                     </li>
                   </ul>
                 </div>
@@ -1894,6 +2018,166 @@ const WildlifeDashboard = ({ onLogout }) => {
           </div>
         )}
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && selectedReviewItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold">Review Detection</h3>
+                <button
+                  onClick={() => setShowReviewModal(false)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-medium mb-3">Detection Details</h4>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <strong>Title:</strong>{" "}
+                        {selectedReviewItem.listing_title || "N/A"}
+                      </div>
+                      <div>
+                        <strong>Platform:</strong> {selectedReviewItem.platform}
+                      </div>
+                      <div>
+                        <strong>Price:</strong>{" "}
+                        {selectedReviewItem.listing_price || "N/A"}
+                      </div>
+                      <div>
+                        <strong>Search Term:</strong>{" "}
+                        {selectedReviewItem.search_term || "N/A"}
+                      </div>
+                      <div>
+                        <strong>URL:</strong>
+                        <a
+                          href={selectedReviewItem.listing_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:text-blue-300 ml-2"
+                        >
+                          View Original →
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-medium mb-3">Threat Analysis</h4>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <strong>Threat Score:</strong>{" "}
+                        {selectedReviewItem.threat_score}/100
+                      </div>
+                      <div>
+                        <strong>Threat Level:</strong>
+                        <span
+                          className={`ml-2 px-2 py-1 rounded text-xs ${
+                            selectedReviewItem.threat_level === "CRITICAL"
+                              ? "bg-red-900 text-red-200"
+                              : selectedReviewItem.threat_level === "HIGH"
+                                ? "bg-orange-900 text-orange-200"
+                                : "bg-yellow-900 text-yellow-200"
+                          }`}
+                        >
+                          {selectedReviewItem.threat_level}
+                        </span>
+                      </div>
+                      <div>
+                        <strong>Category:</strong>
+                        <span
+                          className={`ml-2 px-2 py-1 rounded text-xs ${
+                            selectedReviewItem.threat_category === "wildlife"
+                              ? "bg-green-900 text-green-200"
+                              : selectedReviewItem.threat_category ===
+                                  "human_trafficking"
+                                ? "bg-red-900 text-red-200"
+                                : "bg-purple-900 text-purple-200"
+                          }`}
+                        >
+                          {selectedReviewItem.threat_category === "wildlife"
+                            ? "🦏 Wildlife"
+                            : selectedReviewItem.threat_category ===
+                                "human_trafficking"
+                              ? "🚨 Human Trafficking"
+                              : selectedReviewItem.threat_category === "both"
+                                ? "⚖️ Both"
+                                : "❓ Unknown"}
+                        </span>
+                      </div>
+                      {selectedReviewItem.confidence_score && (
+                        <div>
+                          <strong>Confidence:</strong>{" "}
+                          {(selectedReviewItem.confidence_score * 100).toFixed(
+                            1
+                          )}
+                          %
+                        </div>
+                      )}
+                      {selectedReviewItem.vision_analyzed && (
+                        <div className="text-purple-400">
+                          📸 Analyzed by Vision AI
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {selectedReviewItem.enhancement_notes && (
+                  <div>
+                    <h4 className="font-medium mb-2">AI Analysis Notes</h4>
+                    <div className="bg-slate-700 p-3 rounded text-sm">
+                      {selectedReviewItem.enhancement_notes}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-4 border-t border-slate-600">
+                  <button
+                    onClick={() =>
+                      handleReviewAction("approve", selectedReviewItem.id)
+                    }
+                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-sm transition-colors"
+                  >
+                    ✅ Approve & Clear
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleReviewAction("escalate", selectedReviewItem.id)
+                    }
+                    className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-sm transition-colors"
+                  >
+                    🚨 Escalate to Critical
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleReviewAction(
+                        "false_positive",
+                        selectedReviewItem.id
+                      )
+                    }
+                    className="bg-slate-600 hover:bg-slate-700 px-4 py-2 rounded text-sm transition-colors"
+                  >
+                    ❌ Mark as False Positive
+                  </button>
+                  <button
+                    onClick={() => setShowReviewModal(false)}
+                    className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded text-sm transition-colors ml-auto"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
