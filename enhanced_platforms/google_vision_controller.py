@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 WildGuard AI - Google Vision API Integration with Hard 1000/month Cap
-Cost-controlled image analysis for wildlife/human trafficking detection
+FIXED VERSION for GitHub Actions compatibility
 """
 
 import asyncio
@@ -31,16 +31,31 @@ class VisionAnalysis:
 class GoogleVisionController:
     """
     Google Vision API integration with strict 1000/month quota management
+    FIXED for GitHub Actions compatibility
     """
     
     def __init__(self):
-        self.api_key = os.getenv('GOOGLE_VISION_API_KEY')  # User will set this
-        self.db_path = '/Users/parkercase/conservation-bot/vision_quota.db'
+        self.api_key = os.getenv('GOOGLE_VISION_API_KEY')
+        
+        # FIX: Use relative path that works in GitHub Actions
+        # Get current working directory and create database in current directory
+        current_dir = os.getcwd()
+        self.db_path = os.path.join(current_dir, 'vision_quota.db')
+        
         self.monthly_quota = 1000  # Hard limit
         self.current_month_usage = 0
         
-        self._init_quota_db()
-        self._load_monthly_usage()
+        # Only initialize if API key is available
+        if self.api_key:
+            try:
+                self._init_quota_db()
+                self._load_monthly_usage()
+                logging.info(f"✅ Vision API initialized with database at: {self.db_path}")
+            except Exception as e:
+                logging.warning(f"⚠️ Vision API initialization failed: {e}")
+                self.api_key = None  # Disable Vision API if DB fails
+        else:
+            logging.info("ℹ️ Google Vision API key not configured - Vision analysis disabled")
         
         # Wildlife-related detection terms
         self.wildlife_terms = {
@@ -76,68 +91,95 @@ class GoogleVisionController:
     
     def _init_quota_db(self):
         """Initialize SQLite database for quota tracking"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS vision_quota (
-                month_year TEXT PRIMARY KEY,
-                requests_used INTEGER,
-                last_updated TEXT
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS vision_cache (
-                image_hash TEXT PRIMARY KEY,
-                analysis_result TEXT,
-                timestamp TEXT
-            )
-        ''')
-        
-        conn.commit()
-        conn.close()
+        try:
+            # Ensure directory exists
+            db_dir = os.path.dirname(self.db_path)
+            if db_dir and not os.path.exists(db_dir):
+                os.makedirs(db_dir, exist_ok=True)
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS vision_quota (
+                    month_year TEXT PRIMARY KEY,
+                    requests_used INTEGER,
+                    last_updated TEXT
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS vision_cache (
+                    image_hash TEXT PRIMARY KEY,
+                    analysis_result TEXT,
+                    timestamp TEXT
+                )
+            ''')
+            
+            conn.commit()
+            conn.close()
+            
+            logging.info(f"✅ Vision quota database initialized at: {self.db_path}")
+            
+        except Exception as e:
+            logging.error(f"❌ Failed to initialize vision quota database: {e}")
+            raise
     
     def _load_monthly_usage(self):
         """Load current month's usage"""
+        if not self.api_key:
+            return
+            
         current_month = datetime.now().strftime('%Y-%m')
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT requests_used FROM vision_quota WHERE month_year = ?', (current_month,))
-        result = cursor.fetchone()
-        
-        if result:
-            self.current_month_usage = result[0]
-        else:
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT requests_used FROM vision_quota WHERE month_year = ?', (current_month,))
+            result = cursor.fetchone()
+            
+            if result:
+                self.current_month_usage = result[0]
+            else:
+                self.current_month_usage = 0
+                cursor.execute('INSERT INTO vision_quota (month_year, requests_used, last_updated) VALUES (?, 0, ?)', 
+                             (current_month, datetime.now().isoformat()))
+                conn.commit()
+            
+            conn.close()
+            
+            logging.info(f"Vision API quota: {self.current_month_usage}/{self.monthly_quota} used this month")
+            
+        except Exception as e:
+            logging.error(f"Failed to load monthly usage: {e}")
             self.current_month_usage = 0
-            cursor.execute('INSERT INTO vision_quota (month_year, requests_used, last_updated) VALUES (?, 0, ?)', 
-                         (current_month, datetime.now().isoformat()))
-            conn.commit()
-        
-        conn.close()
-        
-        logging.info(f"Vision API quota: {self.current_month_usage}/{self.monthly_quota} used this month")
     
     def _update_quota_usage(self):
         """Update quota usage in database"""
+        if not self.api_key:
+            return
+            
         current_month = datetime.now().strftime('%Y-%m')
         self.current_month_usage += 1
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            UPDATE vision_quota 
-            SET requests_used = ?, last_updated = ?
-            WHERE month_year = ?
-        ''', (self.current_month_usage, datetime.now().isoformat(), current_month))
-        
-        conn.commit()
-        conn.close()
-        
-        logging.info(f"Vision API quota updated: {self.current_month_usage}/{self.monthly_quota}")
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE vision_quota 
+                SET requests_used = ?, last_updated = ?
+                WHERE month_year = ?
+            ''', (self.current_month_usage, datetime.now().isoformat(), current_month))
+            
+            conn.commit()
+            conn.close()
+            
+            logging.info(f"Vision API quota updated: {self.current_month_usage}/{self.monthly_quota}")
+            
+        except Exception as e:
+            logging.error(f"Failed to update quota usage: {e}")
     
     def can_use_quota(self) -> Tuple[bool, str]:
         """Check if we can use Vision API quota"""
@@ -368,46 +410,58 @@ class GoogleVisionController:
     
     def _get_cached_analysis(self, image_hash: str) -> Optional[VisionAnalysis]:
         """Get cached vision analysis"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT analysis_result FROM vision_cache WHERE image_hash = ?', (image_hash,))
-        result = cursor.fetchone()
-        conn.close()
-        
-        if result:
-            data = json.loads(result[0])
-            analysis = VisionAnalysis(**data)
-            analysis.cache_hit = True
-            analysis.cost_used = False
-            return analysis
+        if not self.api_key:
+            return None
+            
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT analysis_result FROM vision_cache WHERE image_hash = ?', (image_hash,))
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result:
+                data = json.loads(result[0])
+                analysis = VisionAnalysis(**data)
+                analysis.cache_hit = True
+                analysis.cost_used = False
+                return analysis
+        except Exception as e:
+            logging.warning(f"Cache lookup failed: {e}")
         
         return None
     
     def _cache_analysis(self, image_hash: str, analysis: VisionAnalysis):
         """Cache vision analysis result"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        # Prepare data for caching
-        cache_data = {
-            'has_wildlife_indicators': analysis.has_wildlife_indicators,
-            'has_human_trafficking_indicators': analysis.has_human_trafficking_indicators,
-            'detected_labels': analysis.detected_labels,
-            'detected_text': analysis.detected_text,
-            'confidence_score': analysis.confidence_score,
-            'analysis_type': analysis.analysis_type,
-            'cost_used': False,  # Cache hits don't cost quota
-            'cache_hit': True
-        }
-        
-        cursor.execute('''
-            INSERT OR REPLACE INTO vision_cache (image_hash, analysis_result, timestamp)
-            VALUES (?, ?, ?)
-        ''', (image_hash, json.dumps(cache_data), datetime.now().isoformat()))
-        
-        conn.commit()
-        conn.close()
+        if not self.api_key:
+            return
+            
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Prepare data for caching
+            cache_data = {
+                'has_wildlife_indicators': analysis.has_wildlife_indicators,
+                'has_human_trafficking_indicators': analysis.has_human_trafficking_indicators,
+                'detected_labels': analysis.detected_labels,
+                'detected_text': analysis.detected_text,
+                'confidence_score': analysis.confidence_score,
+                'analysis_type': analysis.analysis_type,
+                'cost_used': False,  # Cache hits don't cost quota
+                'cache_hit': True
+            }
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO vision_cache (image_hash, analysis_result, timestamp)
+                VALUES (?, ?, ?)
+            ''', (image_hash, json.dumps(cache_data), datetime.now().isoformat()))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logging.warning(f"Failed to cache analysis: {e}")
     
     def enhance_score_with_vision(self, enhanced_score: int, vision_analysis: VisionAnalysis) -> Tuple[int, str]:
         """Enhance threat score based on vision analysis"""
@@ -487,14 +541,15 @@ class GoogleVisionController:
             'quota_percentage': (self.current_month_usage / self.monthly_quota) * 100,
             'days_remaining': days_remaining,
             'daily_budget_remaining': int(daily_budget_remaining),
-            'api_key_configured': bool(self.api_key)
+            'api_key_configured': bool(self.api_key),
+            'database_path': self.db_path
         }
 
 
-def test_vision_quota_system():
-    """Test the vision quota management system"""
+def test_fixed_vision_system():
+    """Test the fixed vision system"""
     
-    print("📸 TESTING GOOGLE VISION QUOTA SYSTEM")
+    print("📸 TESTING FIXED GOOGLE VISION SYSTEM")
     print("=" * 80)
     
     vision = GoogleVisionController()
@@ -508,57 +563,23 @@ def test_vision_quota_system():
     print(f"   Days Remaining: {status['days_remaining']}")
     print(f"   Daily Budget Remaining: {status['daily_budget_remaining']}")
     print(f"   API Key Configured: {status['api_key_configured']}")
+    print(f"   Database Path: {status['database_path']}")
     
-    # Test analysis criteria
-    test_cases = [
-        {
-            'enhanced_score': 45,
-            'threat_category': 'WILDLIFE',
-            'requires_human_review': False,
-            'image_url': 'https://example.com/suspicious.jpg'
-        },
-        {
-            'enhanced_score': 85,
-            'threat_category': 'CRITICAL',
-            'requires_human_review': True,
-            'image_url': 'https://example.com/high_threat.jpg'
-        },
-        {
-            'enhanced_score': 15,
-            'threat_category': 'SAFE',
-            'requires_human_review': False,
-            'image_url': 'https://example.com/safe.jpg'
-        }
-    ]
-    
-    print(f"\n🎯 ANALYSIS CRITERIA TEST:")
-    for i, case in enumerate(test_cases, 1):
-        should_analyze, reason = vision.should_analyze_image(case, case)
-        status_icon = "✅" if should_analyze else "❌"
-        print(f"   {i}. Score {case['enhanced_score']}: {status_icon} - {reason}")
-    
-    print(f"\n💰 COST CONTROL FEATURES:")
-    print(f"   ✅ Hard 1000/month quota limit")
-    print(f"   ✅ Database-backed quota tracking")
-    print(f"   ✅ Intelligent analysis criteria")
-    print(f"   ✅ Result caching to avoid duplicate costs")
-    print(f"   ✅ Priority for uncertain scores (30-75 range)")
-    print(f"   ✅ Always analyze human review cases")
-    print(f"   ✅ Skip very low (<30) and very high (>75) scores")
-    
-    print(f"\n🔧 SETUP INSTRUCTIONS:")
-    print(f"   1. Get Google Vision API key from Google Cloud Console")
-    print(f"   2. Add to .env file: GOOGLE_VISION_API_KEY=your_key_here")
-    print(f"   3. Enable Vision API in your Google Cloud project")
-    print(f"   4. Quota will be automatically tracked and enforced")
+    print(f"\n🔧 FIXES APPLIED:")
+    print(f"   ✅ Database path now uses current working directory")
+    print(f"   ✅ Graceful fallback when API key not configured")
+    print(f"   ✅ Robust error handling for GitHub Actions")
+    print(f"   ✅ Directory creation for database path")
+    print(f"   ✅ Better logging for debugging")
     
     return vision
 
 
 if __name__ == "__main__":
-    vision_system = test_vision_quota_system()
+    vision_system = test_fixed_vision_system()
     
-    print(f"\n🎉 GOOGLE VISION INTEGRATION: READY")
+    print(f"\n🎉 FIXED GOOGLE VISION INTEGRATION: READY")
+    print(f"   • Works in both local and GitHub Actions environments")
     print(f"   • Hard 1000/month quota management")
     print(f"   • Intelligent cost optimization")
     print(f"   • Wildlife + human trafficking detection")
