@@ -1,0 +1,18 @@
+{
+  "total_scanned": 0,
+  "total_stored": 0,
+  "human_trafficking_alerts": 0,
+  "critical_alerts": 0,
+  "human_review_required": 0,
+  "vision_analyzed": 0,
+  "platforms_scanned": [
+    "craigslist",
+    "gumtree",
+    "olx"
+  ],
+  "errors": [
+    "Test error"
+  ],
+  "scan_status": "test",
+  "timestamp": "2025-06-27T13:54:54.733742"
+}

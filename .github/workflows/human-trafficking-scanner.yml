@@ -53,12 +53,46 @@ jobs:
 
       - name: Load environment variables
         run: |
-          # Load environment variables from backend/.env
+          # Load environment variables from backend/.env (for local testing)
           if [ -f backend/.env ]; then
             export $(cat backend/.env | grep -v '^#' | xargs)
             echo "Environment variables loaded from backend/.env"
           else
-            echo "Warning: backend/.env not found, using GitHub secrets"
+            echo "backend/.env not found, using GitHub secrets"
+          fi
+
+          # Verify required environment variables are set
+          echo "Checking environment variables..."
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "❌ SUPABASE_URL not set"
+            exit 1
+          else
+            echo "✅ SUPABASE_URL is set"
+          fi
+
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "❌ SUPABASE_ANON_KEY not set"
+            exit 1
+          else
+            echo "✅ SUPABASE_ANON_KEY is set"
+          fi
+
+          if [ -z "$GOOGLE_VISION_API_KEY" ]; then
+            echo "⚠️ GOOGLE_VISION_API_KEY not set (optional)"
+          else
+            echo "✅ GOOGLE_VISION_API_KEY is set"
+          fi
+
+          if [ -z "$EBAY_APP_ID" ]; then
+            echo "⚠️ EBAY_APP_ID not set (optional)"
+          else
+            echo "✅ EBAY_APP_ID is set"
+          fi
+
+          if [ -z "$EBAY_CERT_ID" ]; then
+            echo "⚠️ EBAY_CERT_ID not set (optional)"
+          else
+            echo "✅ EBAY_CERT_ID is set"
           fi
 
       - name: Load human trafficking keywords
@@ -152,6 +186,40 @@ jobs:
         env:
           KEYWORD_BATCH_SIZE: ${{ inputs.keyword_batch_size || '10' }}
 
+      - name: Create keyword state file if missing
+        run: |
+          if [ ! -f human_trafficking_keyword_state.json ]; then
+            echo "Creating initial keyword state file..."
+            cat > human_trafficking_keyword_state.json << 'EOF'
+          {
+            "last_index": 0,
+            "total_keywords": 0,
+            "last_run": null,
+            "completed_cycles": 0,
+            "high_priority_platforms": ["craigslist", "gumtree", "olx", "facebook"]
+          }
+          EOF
+            echo "✅ Keyword state file created"
+          else
+            echo "✅ Keyword state file already exists"
+          fi
+
+      - name: Debug file creation
+        run: |
+          echo "🔍 Debugging file creation..."
+          echo "Current directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
+
+          # Create test files to verify we can write
+          echo '{"test": "data"}' > test_file.json
+          echo "✅ Test file created"
+          ls -la test_file.json
+
+          # Clean up test file
+          rm test_file.json
+          echo "🧹 Test file cleaned up"
+
       - name: Human Trafficking Scan
         id: scan
         run: |
@@ -166,6 +234,20 @@ jobs:
           # Setup logging
           logging.basicConfig(level=logging.INFO)
 
+          # Initialize results structure
+          results = {
+              'total_scanned': 0,
+              'total_stored': 0,
+              'human_trafficking_alerts': 0,
+              'critical_alerts': 0,
+              'human_review_required': 0,
+              'vision_analyzed': 0,
+              'platforms_scanned': [],
+              'errors': [],
+              'scan_status': 'failed',
+              'timestamp': datetime.now().isoformat()
+          }
+
           async def run_human_trafficking_scan():
               try:
                   # Import components
@@ -177,6 +259,7 @@ jobs:
                   keywords_str = os.getenv('SCAN_KEYWORDS', '')
                   if not keywords_str:
                       logging.error("No keywords provided")
+                      results['errors'].append("No keywords provided")
                       return False
                   
                   keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
@@ -186,17 +269,7 @@ jobs:
                   platforms_str = os.getenv('SCAN_PLATFORMS', 'craigslist,gumtree,olx')
                   platforms = [p.strip() for p in platforms_str.split(',') if p.strip()]
                   logging.info(f"Target platforms: {', '.join(platforms)}")
-                  
-                  results = {
-                      'total_scanned': 0,
-                      'total_stored': 0,
-                      'human_trafficking_alerts': 0,
-                      'critical_alerts': 0,
-                      'human_review_required': 0,
-                      'vision_analyzed': 0,
-                      'platforms_scanned': platforms,
-                      'errors': []
-                  }
+                  results['platforms_scanned'] = platforms
                   
                   # Initialize scanners
                   scorer = EnhancedThreatScorer()
@@ -277,26 +350,50 @@ jobs:
                           results['total_stored'] = stored_count
                       
                       results['total_scanned'] = len(all_results)
+                      results['scan_status'] = 'completed'
                       
                       logging.info(f"✅ Human trafficking scan completed")
                       logging.info(f"📊 Results: {results}")
-                  
-                  # Save results
-                  with open('human_trafficking_results.json', 'w') as f:
-                      json.dump(results, f)
-                  
-                  return True
+                      return True
                   
               except Exception as e:
                   logging.error(f"Critical error: {e}")
+                  results['errors'].append(f"Critical error: {str(e)}")
                   import traceback
                   traceback.print_exc()
                   return False
 
           # Run the scan
           success = asyncio.run(run_human_trafficking_scan())
+
+          # Always save results, even if scan failed
+          with open('human_trafficking_results.json', 'w') as f:
+              json.dump(results, f, indent=2)
+
+          print(f"📄 Results saved to human_trafficking_results.json")
+          print(f"📊 Scan status: {results['scan_status']}")
+          print(f"📊 Total scanned: {results['total_scanned']}")
+          print(f"📊 Errors: {len(results['errors'])}")
+
+          # Debug: Check if file was created
+          if os.path.exists('human_trafficking_results.json'):
+              size = os.path.getsize('human_trafficking_results.json')
+              print(f"✅ human_trafficking_results.json created successfully ({size} bytes)")
+          else:
+              print("❌ human_trafficking_results.json was not created!")
+
+          # Debug: List all files in current directory
+          print("📋 Files in current directory:")
+          for file in os.listdir('.'):
+              if file.endswith('.json'):
+                  size = os.path.getsize(file)
+                  print(f"   {file} ({size} bytes)")
+
           if not success:
+              print("❌ Scan completed with errors")
               sys.exit(1)
+          else:
+              print("✅ Scan completed successfully")
           EOF
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -305,6 +402,34 @@ jobs:
           SCAN_KEYWORDS: ${{ steps.load-keywords.outputs.keywords }}
           SCAN_PLATFORMS: ${{ inputs.platforms || 'craigslist,gumtree,olx' }}
           ENABLE_VISION: ${{ inputs.enable_vision_api || 'true' }}
+
+      - name: Verify files before upload
+        run: |
+          echo "🔍 Verifying files before upload..."
+          echo "Current directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
+
+          echo ""
+          echo "📋 Checking for required files:"
+
+          if [ -f human_trafficking_results.json ]; then
+            size=$(stat -c%s human_trafficking_results.json 2>/dev/null || stat -f%z human_trafficking_results.json 2>/dev/null || echo "unknown")
+            echo "✅ human_trafficking_results.json exists ($size bytes)"
+          else
+            echo "❌ human_trafficking_results.json missing"
+          fi
+
+          if [ -f human_trafficking_keyword_state.json ]; then
+            size=$(stat -c%s human_trafficking_keyword_state.json 2>/dev/null || stat -f%z human_trafficking_keyword_state.json 2>/dev/null || echo "unknown")
+            echo "✅ human_trafficking_keyword_state.json exists ($size bytes)"
+          else
+            echo "❌ human_trafficking_keyword_state.json missing"
+          fi
+
+          echo ""
+          echo "📋 All JSON files in directory:"
+          find . -name "*.json" -type f | head -10
 
       - name: Alert on Critical Findings
         if: always()

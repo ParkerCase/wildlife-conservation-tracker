@@ -1,0 +1,42 @@
+name: Test JSON Upload
+on:
+  workflow_dispatch:
+
+jobs:
+  test-json-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create test JSON files
+        run: |
+          echo "Creating test JSON files..."
+
+          # Create a simple test file
+          echo '{"test": "data", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > test_results.json
+
+          # Create the files that the main workflow needs
+          echo '{"total_scanned": 0, "errors": ["test"], "scan_status": "test"}' > human_trafficking_results.json
+          echo '{"last_index": 0, "total_keywords": 10, "completed_cycles": 0}' > human_trafficking_keyword_state.json
+
+          echo "Files created:"
+          ls -la *.json
+
+          echo "File contents:"
+          cat test_results.json
+          echo ""
+          cat human_trafficking_results.json
+          echo ""
+          cat human_trafficking_keyword_state.json
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-json-files
+          path: |
+            test_results.json
+            human_trafficking_results.json
+            human_trafficking_keyword_state.json
+          retention-days: 1
