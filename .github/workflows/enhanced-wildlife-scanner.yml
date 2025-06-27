@@ -2,258 +2,258 @@ name: Enhanced Wildlife Scanner
 on:
   schedule:
     # Run every 4 hours to ensure 24/7 coverage
-    - cron: '0 */4 * * *'
+    - cron: "0 */4 * * *"
   workflow_dispatch:
     inputs:
       platforms:
-        description: 'Platforms to scan (comma-separated: ebay,aliexpress,taobao,craigslist,olx,marktplaats,mercadolibre)'
-        default: 'ebay,aliexpress,taobao,craigslist,olx'
+        description: "Platforms to scan (comma-separated: ebay,aliexpress,taobao,craigslist,olx,marktplaats,mercadolibre)"
+        default: "ebay,aliexpress,taobao,craigslist,olx"
         type: string
       keyword_batch_size:
-        description: 'Number of keywords per batch'
-        default: '15'
+        description: "Number of keywords per batch"
+        default: "15"
         type: string
       enable_vision_api:
-        description: 'Enable Google Vision API analysis'
+        description: "Enable Google Vision API analysis"
         default: true
         type: boolean
 
 jobs:
   enhanced-wildlife-scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 55  # Leave 5 min buffer for cleanup
-    
+    timeout-minutes: 55 # Leave 5 min buffer for cleanup
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Cache Python dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-wildlife-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-wildlife-
-    
-    - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install playwright fake-useragent nltk
-        playwright install chromium
-    
-    - name: Download NLTK data
-      run: |
-        python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
-    
-    - name: Load keyword state
-      id: load-keywords
-      run: |
-        python3 << 'EOF'
-        import json
-        import os
-        
-        # Load or initialize keyword state
-        state_file = 'wildlife_keyword_state.json'
-        default_state = {
-            "last_index": 0,
-            "total_keywords": 0,
-            "last_run": None,
-            "completed_cycles": 0,
-            "platforms_rotation": ["ebay", "aliexpress", "taobao", "craigslist", "olx", "marktplaats", "mercadolibre"]
-        }
-        
-        try:
-            with open(state_file, 'r') as f:
-                state = json.load(f)
-        except FileNotFoundError:
-            state = default_state
-        
-        # Load multilingual keywords
-        try:
-            with open('multilingual_wildlife_keywords.json', 'r') as f:
-                keywords_data = json.load(f)
-                all_keywords = []
-                for lang_keywords in keywords_data['keywords_by_language'].values():
-                    all_keywords.extend(lang_keywords)
-                all_keywords = list(set(all_keywords))  # Remove duplicates
-                state['total_keywords'] = len(all_keywords)
-        except Exception as e:
-            print(f"Error loading keywords: {e}")
-            all_keywords = ["ivory", "tiger bone", "rhino horn", "traditional medicine"]
-            state['total_keywords'] = len(all_keywords)
-        
-        # Calculate batch for this run
-        batch_size = int(os.getenv('KEYWORD_BATCH_SIZE', '15'))
-        start_idx = state['last_index']
-        end_idx = min(start_idx + batch_size, len(all_keywords))
-        
-        # If we've reached the end, start over (ensures full coverage)
-        if start_idx >= len(all_keywords):
-            start_idx = 0
-            end_idx = min(batch_size, len(all_keywords))
-            state['completed_cycles'] += 1
-        
-        current_batch = all_keywords[start_idx:end_idx]
-        
-        # Update state for next run
-        state['last_index'] = end_idx
-        state['last_run'] = str(datetime.now())
-        
-        # Save updated state
-        with open(state_file, 'w') as f:
-            json.dump(state, f)
-        
-        print(f"Keywords {start_idx}-{end_idx}/{len(all_keywords)}: {', '.join(current_batch[:5])}...")
-        print(f"Completed cycles: {state['completed_cycles']}")
-        
-        # Set outputs for GitHub Actions
-        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-            f.write(f"keywords={','.join(current_batch)}\n")
-            f.write(f"progress={end_idx}/{len(all_keywords)}\n")
-            f.write(f"cycle={state['completed_cycles']}\n")
-        EOF
-      env:
-        KEYWORD_BATCH_SIZE: ${{ inputs.keyword_batch_size || '15' }}
-    
-    - name: Enhanced Wildlife Scan
-      id: scan
-      run: |
-        python3 << 'EOF'
-        import asyncio
-        import os
-        import json
-        import logging
-        from datetime import datetime
-        import sys
-        
-        # Setup logging
-        logging.basicConfig(level=logging.INFO)
-        
-        async def run_enhanced_wildlife_scan():
-            try:
-                from ultimate_wildguard_scanner import UltimateWildGuardScanner
-                
-                # Get keywords from previous step
-                keywords_str = os.getenv('SCAN_KEYWORDS', '')
-                if not keywords_str:
-                    logging.error("No keywords provided")
-                    return False
-                
-                keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
-                logging.info(f"Scanning with {len(keywords)} keywords: {', '.join(keywords[:3])}...")
-                
-                # Get platform list
-                platforms_str = os.getenv('SCAN_PLATFORMS', 'ebay,aliexpress,taobao,craigslist,olx')
-                platforms = [p.strip() for p in platforms_str.split(',') if p.strip()]
-                logging.info(f"Target platforms: {', '.join(platforms)}")
-                
-                results = {
-                    'total_scanned': 0,
-                    'total_stored': 0,
-                    'wildlife_threats': 0,
-                    'platforms_scanned': [],
-                    'vision_analyzed': 0,
-                    'errors': []
-                }
-                
-                async with UltimateWildGuardScanner() as scanner:
-                    # Override keyword method to use our batch
-                    scanner.current_keywords = keywords
-                    
-                    # Run scanning cycle
-                    try:
-                        stats = await scanner.run_ultimate_scanning_cycle()
-                        
-                        results.update({
-                            'total_scanned': stats.get('total_found', 0),
-                            'total_stored': stats.get('total_stored', 0),
-                            'wildlife_threats': stats.get('wildlife_threats', 0),
-                            'vision_analyzed': stats.get('vision_analyses', 0)
-                        })
-                        
-                        logging.info(f"✅ Enhanced scan completed successfully")
-                        logging.info(f"📊 Results: {stats}")
-                        
-                    except Exception as e:
-                        logging.error(f"Scan error: {e}")
-                        results['errors'].append(str(e))
-                        return False
-                
-                # Save results
-                with open('scan_results.json', 'w') as f:
-                    json.dump(results, f)
-                
-                return True
-                
-            except Exception as e:
-                logging.error(f"Critical error: {e}")
-                import traceback
-                traceback.print_exc()
-                return False
-        
-        # Run the scan
-        success = asyncio.run(run_enhanced_wildlife_scan())
-        if not success:
-            sys.exit(1)
-        EOF
-      env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
-        EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
-        EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
-        SCAN_KEYWORDS: ${{ steps.load-keywords.outputs.keywords }}
-        SCAN_PLATFORMS: ${{ inputs.platforms || 'ebay,aliexpress,taobao,craigslist,olx' }}
-        ENABLE_VISION: ${{ inputs.enable_vision_api || 'true' }}
-    
-    - name: Report Results
-      if: always()
-      run: |
-        if [ -f scan_results.json ]; then
-          echo "📊 Enhanced Wildlife Scan Results:"
-          python3 -c "
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-wildlife-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-wildlife-
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install playwright fake-useragent nltk
+          playwright install chromium
+
+      - name: Download NLTK data
+        run: |
+          python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+
+      - name: Load keyword state
+        id: load-keywords
+        run: |
+          python3 << 'EOF'
           import json
-          with open('scan_results.json', 'r') as f:
-              results = json.load(f)
-          print(f\"   Total Scanned: {results.get('total_scanned', 0):,}\")
-          print(f\"   Stored: {results.get('total_stored', 0):,}\")
-          print(f\"   Wildlife Threats: {results.get('wildlife_threats', 0):,}\")
-          print(f\"   Vision Analyzed: {results.get('vision_analyzed', 0):,}\")
-          if results.get('errors'):
-              print(f\"   Errors: {len(results['errors'])}\")
-          "
-        else
-          echo "❌ No results file found"
-        fi
-        
-        echo "🎯 Keyword Progress: ${{ steps.load-keywords.outputs.progress }}"
-        echo "🔄 Completed Cycles: ${{ steps.load-keywords.outputs.cycle }}"
-    
-    - name: Upload scan results
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: wildlife-scan-results-${{ github.run_number }}
-        path: |
-          scan_results.json
-          wildlife_keyword_state.json
-        retention-days: 7
-    
-    - name: Save keyword state
-      if: always()
-      run: |
-        # Commit updated keyword state back to repo
-        if [ -f wildlife_keyword_state.json ]; then
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add wildlife_keyword_state.json
-          git diff --staged --quiet || git commit -m "Update wildlife keyword state - Run ${{ github.run_number }}"
-          # Note: Would need personal access token to push back
-          echo "Keyword state updated locally"
-        fi
+          import os
+
+          # Load or initialize keyword state
+          state_file = 'wildlife_keyword_state.json'
+          default_state = {
+              "last_index": 0,
+              "total_keywords": 0,
+              "last_run": None,
+              "completed_cycles": 0,
+              "platforms_rotation": ["ebay", "aliexpress", "taobao", "craigslist", "olx", "marktplaats", "mercadolibre"]
+          }
+
+          try:
+              with open(state_file, 'r') as f:
+                  state = json.load(f)
+          except FileNotFoundError:
+              state = default_state
+
+          # Load multilingual keywords
+          try:
+              with open('multilingual_wildlife_keywords.json', 'r') as f:
+                  keywords_data = json.load(f)
+                  all_keywords = []
+                  for lang_keywords in keywords_data['keywords_by_language'].values():
+                      all_keywords.extend(lang_keywords)
+                  all_keywords = list(set(all_keywords))  # Remove duplicates
+                  state['total_keywords'] = len(all_keywords)
+          except Exception as e:
+              print(f"Error loading keywords: {e}")
+              all_keywords = ["ivory", "tiger bone", "rhino horn", "traditional medicine"]
+              state['total_keywords'] = len(all_keywords)
+
+          # Calculate batch for this run
+          batch_size = int(os.getenv('KEYWORD_BATCH_SIZE', '15'))
+          start_idx = state['last_index']
+          end_idx = min(start_idx + batch_size, len(all_keywords))
+
+          # If we've reached the end, start over (ensures full coverage)
+          if start_idx >= len(all_keywords):
+              start_idx = 0
+              end_idx = min(batch_size, len(all_keywords))
+              state['completed_cycles'] += 1
+
+          current_batch = all_keywords[start_idx:end_idx]
+
+          # Update state for next run
+          state['last_index'] = end_idx
+          state['last_run'] = str(datetime.now())
+
+          # Save updated state
+          with open(state_file, 'w') as f:
+              json.dump(state, f)
+
+          print(f"Keywords {start_idx}-{end_idx}/{len(all_keywords)}: {', '.join(current_batch[:5])}...")
+          print(f"Completed cycles: {state['completed_cycles']}")
+
+          # Set outputs for GitHub Actions
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"keywords={','.join(current_batch)}\n")
+              f.write(f"progress={end_idx}/{len(all_keywords)}\n")
+              f.write(f"cycle={state['completed_cycles']}\n")
+          EOF
+        env:
+          KEYWORD_BATCH_SIZE: ${{ inputs.keyword_batch_size || '15' }}
+
+      - name: Enhanced Wildlife Scan
+        id: scan
+        run: |
+          python3 << 'EOF'
+          import asyncio
+          import os
+          import json
+          import logging
+          from datetime import datetime
+          import sys
+
+          # Setup logging
+          logging.basicConfig(level=logging.INFO)
+
+          async def run_enhanced_wildlife_scan():
+              try:
+                  from ultimate_wildguard_scanner import UltimateWildGuardScanner
+                  
+                  # Get keywords from previous step
+                  keywords_str = os.getenv('SCAN_KEYWORDS', '')
+                  if not keywords_str:
+                      logging.error("No keywords provided")
+                      return False
+                  
+                  keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
+                  logging.info(f"Scanning with {len(keywords)} keywords: {', '.join(keywords[:3])}...")
+                  
+                  # Get platform list
+                  platforms_str = os.getenv('SCAN_PLATFORMS', 'ebay,aliexpress,taobao,craigslist,olx')
+                  platforms = [p.strip() for p in platforms_str.split(',') if p.strip()]
+                  logging.info(f"Target platforms: {', '.join(platforms)}")
+                  
+                  results = {
+                      'total_scanned': 0,
+                      'total_stored': 0,
+                      'wildlife_threats': 0,
+                      'platforms_scanned': [],
+                      'vision_analyzed': 0,
+                      'errors': []
+                  }
+                  
+                  async with UltimateWildGuardScanner() as scanner:
+                      # Override keyword method to use our batch
+                      scanner.current_keywords = keywords
+                      
+                      # Run scanning cycle
+                      try:
+                          stats = await scanner.run_ultimate_scanning_cycle()
+                          
+                          results.update({
+                              'total_scanned': stats.get('total_found', 0),
+                              'total_stored': stats.get('total_stored', 0),
+                              'wildlife_threats': stats.get('wildlife_threats', 0),
+                              'vision_analyzed': stats.get('vision_analyses', 0)
+                          })
+                          
+                          logging.info(f"✅ Enhanced scan completed successfully")
+                          logging.info(f"📊 Results: {stats}")
+                          
+                      except Exception as e:
+                          logging.error(f"Scan error: {e}")
+                          results['errors'].append(str(e))
+                          return False
+                  
+                  # Save results
+                  with open('scan_results.json', 'w') as f:
+                      json.dump(results, f)
+                  
+                  return True
+                  
+              except Exception as e:
+                  logging.error(f"Critical error: {e}")
+                  import traceback
+                  traceback.print_exc()
+                  return False
+
+          # Run the scan
+          success = asyncio.run(run_enhanced_wildlife_scan())
+          if not success:
+              sys.exit(1)
+          EOF
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+          EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
+          EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
+          SCAN_KEYWORDS: ${{ steps.load-keywords.outputs.keywords }}
+          SCAN_PLATFORMS: ${{ inputs.platforms || 'ebay,aliexpress,taobao,craigslist,olx' }}
+          ENABLE_VISION: ${{ inputs.enable_vision_api || 'true' }}
+
+      - name: Report Results
+        if: always()
+        run: |
+          if [ -f scan_results.json ]; then
+            echo "📊 Enhanced Wildlife Scan Results:"
+            python3 -c "
+            import json
+            with open('scan_results.json', 'r') as f:
+                results = json.load(f)
+            print(f\"   Total Scanned: {results.get('total_scanned', 0):,}\")
+            print(f\"   Stored: {results.get('total_stored', 0):,}\")
+            print(f\"   Wildlife Threats: {results.get('wildlife_threats', 0):,}\")
+            print(f\"   Vision Analyzed: {results.get('vision_analyzed', 0):,}\")
+            if results.get('errors'):
+                print(f\"   Errors: {len(results['errors'])}\")
+            "
+          else
+            echo "❌ No results file found"
+          fi
+
+          echo "🎯 Keyword Progress: ${{ steps.load-keywords.outputs.progress }}"
+          echo "🔄 Completed Cycles: ${{ steps.load-keywords.outputs.cycle }}"
+
+      - name: Upload scan results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wildlife-scan-results-${{ github.run_number }}
+          path: |
+            scan_results.json
+            wildlife_keyword_state.json
+          retention-days: 7
+
+      - name: Save keyword state
+        if: always()
+        run: |
+          # Commit updated keyword state back to repo
+          if [ -f wildlife_keyword_state.json ]; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add wildlife_keyword_state.json
+            git diff --staged --quiet || git commit -m "Update wildlife keyword state - Run ${{ github.run_number }}"
+            # Note: Would need personal access token to push back
+            echo "Keyword state updated locally"
+          fi
