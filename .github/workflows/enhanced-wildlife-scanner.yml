@@ -70,6 +70,10 @@ jobs:
           echo "EBAY_APP_ID=${{ secrets.EBAY_APP_ID }}" >> $GITHUB_ENV
           echo "EBAY_CERT_ID=${{ secrets.EBAY_CERT_ID }}" >> $GITHUB_ENV
 
+          echo "✅ Environment variables set for subsequent steps"
+
+      - name: Verify environment variables
+        run: |
           # Verify required environment variables are set
           echo "Checking environment variables..."
           if [ -z "$SUPABASE_URL" ]; then
