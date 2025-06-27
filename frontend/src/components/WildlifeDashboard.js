@@ -72,6 +72,7 @@ const WildlifeDashboard = ({ onLogout }) => {
   // Review modal state
   const [selectedReviewItem, setSelectedReviewItem] = useState(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showAllReviewItems, setShowAllReviewItems] = useState(false);
 
   // Updated platform list with new additions
   const allPlatforms = [
@@ -110,10 +111,33 @@ const WildlifeDashboard = ({ onLogout }) => {
 
       const { supabase } = await import("../services/supabaseService");
 
-      // Get total detections count
-      const { count: totalDetections, error: totalError } = await supabase
+      // Get total detections count (filtered by threat category)
+      let totalDetectionsQuery = supabase
         .from("detections")
         .select("*", { count: "exact", head: true });
+
+      // Apply threat category filter to total count
+      if (selectedThreatCategory !== "all") {
+        if (selectedThreatCategory === "wildlife") {
+          totalDetectionsQuery = totalDetectionsQuery.eq(
+            "threat_category",
+            "wildlife"
+          );
+        } else if (selectedThreatCategory === "human_trafficking") {
+          totalDetectionsQuery = totalDetectionsQuery.eq(
+            "threat_category",
+            "human_trafficking"
+          );
+        } else if (selectedThreatCategory === "both") {
+          totalDetectionsQuery = totalDetectionsQuery.eq(
+            "threat_category",
+            "both"
+          );
+        }
+      }
+
+      const { count: totalDetections, error: totalError } =
+        await totalDetectionsQuery;
 
       if (totalError) throw totalError;
 
@@ -988,70 +1012,83 @@ const WildlifeDashboard = ({ onLogout }) => {
                 </div>
               ) : data.humanReviewQueue.length > 0 ? (
                 <div className="space-y-3">
-                  {data.humanReviewQueue.slice(0, 5).map((item, index) => (
-                    <div
-                      key={index}
-                      className="p-4 bg-slate-700 rounded-lg border-l-4 border-orange-500"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-medium ${
-                                item.threat_category === "wildlife"
-                                  ? "bg-green-900 text-green-200"
+                  {data.humanReviewQueue
+                    .slice(
+                      0,
+                      showAllReviewItems ? data.humanReviewQueue.length : 5
+                    )
+                    .map((item, index) => (
+                      <div
+                        key={index}
+                        className="p-4 bg-slate-700 rounded-lg border-l-4 border-orange-500"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-medium ${
+                                  item.threat_category === "wildlife"
+                                    ? "bg-green-900 text-green-200"
+                                    : item.threat_category ===
+                                        "human_trafficking"
+                                      ? "bg-red-900 text-red-200"
+                                      : "bg-yellow-900 text-yellow-200"
+                                }`}
+                              >
+                                {item.threat_category === "wildlife"
+                                  ? "🦏 Wildlife"
                                   : item.threat_category === "human_trafficking"
-                                    ? "bg-red-900 text-red-200"
-                                    : "bg-yellow-900 text-yellow-200"
-                              }`}
-                            >
-                              {item.threat_category === "wildlife"
-                                ? "🦏 Wildlife"
-                                : item.threat_category === "human_trafficking"
-                                  ? "🚨 Human Trafficking"
-                                  : "⚖️ Both"}
-                            </span>
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-medium ${
-                                item.threat_level === "CRITICAL"
-                                  ? "bg-red-900 text-red-200"
-                                  : "bg-orange-900 text-orange-200"
-                              }`}
-                            >
-                              {item.threat_level}
-                            </span>
-                          </div>
-                          <h4 className="font-medium text-white">
-                            {(item.listing_title || "Untitled").substring(
-                              0,
-                              60
-                            )}
-                            ...
-                          </h4>
-                          <p className="text-sm text-slate-400">
-                            Platform: {item.platform} • Score:{" "}
-                            {item.threat_score} •
-                            {item.vision_analyzed && (
-                              <span className="text-purple-400">
-                                {" "}
-                                📸 Vision Analyzed
+                                    ? "🚨 Human Trafficking"
+                                    : "⚖️ Both"}
                               </span>
-                            )}
-                          </p>
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-medium ${
+                                  item.threat_level === "CRITICAL"
+                                    ? "bg-red-900 text-red-200"
+                                    : "bg-orange-900 text-orange-200"
+                                }`}
+                              >
+                                {item.threat_level}
+                              </span>
+                            </div>
+                            <h4 className="font-medium text-white">
+                              {(item.listing_title || "Untitled").substring(
+                                0,
+                                60
+                              )}
+                              ...
+                            </h4>
+                            <p className="text-sm text-slate-400">
+                              Platform: {item.platform} • Score:{" "}
+                              {item.threat_score} •
+                              {item.vision_analyzed && (
+                                <span className="text-purple-400">
+                                  {" "}
+                                  📸 Vision Analyzed
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleReviewClick(item)}
+                            className="bg-orange-600 hover:bg-orange-700 px-3 py-1 rounded text-sm transition-colors"
+                          >
+                            Review
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handleReviewClick(item)}
-                          className="bg-orange-600 hover:bg-orange-700 px-3 py-1 rounded text-sm transition-colors"
-                        >
-                          Review
-                        </button>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                   {data.humanReviewQueue.length > 5 && (
                     <div className="text-center">
-                      <button className="text-blue-400 hover:text-blue-300 text-sm">
-                        View all {data.humanReviewQueue.length} items →
+                      <button
+                        onClick={() =>
+                          setShowAllReviewItems(!showAllReviewItems)
+                        }
+                        className="text-blue-400 hover:text-blue-300 text-sm"
+                      >
+                        {showAllReviewItems
+                          ? `← Show fewer items`
+                          : `View all ${data.humanReviewQueue.length} items →`}
                       </button>
                     </div>
                   )}
@@ -1940,7 +1977,7 @@ const WildlifeDashboard = ({ onLogout }) => {
                                     </span>
                                   ) : (
                                     <span className="text-slate-400">
-                                      Standard
+                                      Enhanced
                                     </span>
                                   )}
                                 </td>
