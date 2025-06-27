@@ -13,10 +13,9 @@ flask-cors==4.0.0
 pyproj==3.6.1
 shapely==2.0.2
 seaborn==0.13.0
-opencv-python==4.8.1
+opencv-python==4.8.0.76
 xarray==2023.12.0
 dask==2023.12.0
-asyncio
 aiohttp
 aiofiles
 beautifulsoup4
@@ -29,4 +28,5 @@ uvicorn
 websockets
 boto3
 schedule
-sqlite3
+fake-useragent
+nltk

@@ -43,7 +43,14 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          # Try the flexible requirements first, fallback to strict if needed
+          if [ -f requirements.github-actions.txt ]; then
+            echo "Installing dependencies with flexible versions..."
+            pip install -r requirements.github-actions.txt
+          else
+            echo "Installing dependencies with strict versions..."
+            pip install -r requirements.txt
+          fi
           pip install playwright fake-useragent nltk
           playwright install chromium
 
