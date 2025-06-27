@@ -1,0 +1,305 @@
+name: FIXED Wildlife Scanner (1,452 Keywords + Intelligent Scoring)
+on:
+  schedule:
+    # Run every 4 hours for maximum coverage
+    - cron: "0 */4 * * *"
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: "Platforms (ALL 9): ebay,craigslist,marktplaats,olx,taobao,aliexpress,mercadolibre,gumtree,avito"
+        default: "ebay,craigslist,marktplaats,olx,taobao,aliexpress,mercadolibre,gumtree,avito"
+        type: string
+      keyword_batch_size:
+        description: "Keywords per batch (from 1,452 total)"
+        default: "30"
+        type: string
+
+jobs:
+  fixed-wildlife-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install requests beautifulsoup4 python-dotenv aiohttp asyncio fake-useragent
+          pip install playwright
+          playwright install chromium
+
+      - name: Load environment variables
+        run: |
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> $GITHUB_ENV
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> $GITHUB_ENV
+          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> $GITHUB_ENV
+          echo "EBAY_APP_ID=${{ secrets.EBAY_APP_ID }}" >> $GITHUB_ENV
+          echo "EBAY_CERT_ID=${{ secrets.EBAY_CERT_ID }}" >> $GITHUB_ENV
+
+      - name: Verify multilingual wildlife keywords (1,452 total)
+        id: verify-keywords
+        run: |
+          python3 << 'EOF'
+          import json
+          import os
+
+          # Verify the 1,452 keyword file exists and is valid
+          try:
+              with open('multilingual_wildlife_keywords.json', 'r') as f:
+                  keywords_data = json.load(f)
+              
+              total_keywords = keywords_data.get('total_keywords', 0)
+              total_languages = keywords_data.get('total_languages', 0)
+              
+              print(f"✅ Multilingual wildlife keywords file found")
+              print(f"📊 Total keywords: {total_keywords}")
+              print(f"🌍 Languages: {total_languages}")
+              
+              # Count actual keywords
+              actual_count = 0
+              for lang, keywords in keywords_data['keywords_by_language'].items():
+                  actual_count += len(keywords)
+                  print(f"   {lang}: {len(keywords)} keywords")
+              
+              print(f"📊 Actual keyword count: {actual_count}")
+              
+              if actual_count >= 1400:  # Should be close to 1,452
+                  print(f"✅ Keyword count verified: {actual_count} >= 1,400")
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write(f"keywords_verified=true\n")
+                      f.write(f"total_keywords={actual_count}\n")
+              else:
+                  print(f"❌ Keyword count too low: {actual_count}")
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write(f"keywords_verified=false\n")
+                      
+          except Exception as e:
+              print(f"❌ Error loading multilingual keywords: {e}")
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"keywords_verified=false\n")
+          EOF
+
+      - name: Load wildlife keyword batch (from 1,452)
+        id: load-keywords
+        run: |
+          python3 << 'EOF'
+          import json
+          import os
+          from datetime import datetime
+
+          # Load keyword state for rotation through ALL 1,452 keywords
+          state_file = 'fixed_wildlife_keyword_state.json'
+          default_state = {
+              "last_index": 0,
+              "total_keywords": 0,
+              "last_run": None,
+              "completed_cycles": 0,
+              "keywords_verified": False
+          }
+
+          try:
+              with open(state_file, 'r') as f:
+                  state = json.load(f)
+          except FileNotFoundError:
+              state = default_state
+
+          # Load ALL multilingual keywords
+          try:
+              with open('multilingual_wildlife_keywords.json', 'r') as f:
+                  keywords_data = json.load(f)
+                  
+              all_keywords = []
+              for lang_keywords in keywords_data['keywords_by_language'].values():
+                  all_keywords.extend(lang_keywords)
+              
+              # Remove duplicates while preserving order
+              all_keywords = list(dict.fromkeys(all_keywords))
+              state['total_keywords'] = len(all_keywords)
+              state['keywords_verified'] = True
+              
+              print(f"✅ Loaded {len(all_keywords)} unique multilingual wildlife keywords")
+              
+          except Exception as e:
+              print(f"❌ Error loading multilingual keywords: {e}")
+              print("❌ This is a critical error - you'll lose your 1,452 keyword advantage!")
+              exit(1)
+
+          # Calculate batch for this run
+          batch_size = int(os.getenv('KEYWORD_BATCH_SIZE', '30'))
+          start_idx = state['last_index']
+          end_idx = min(start_idx + batch_size, len(all_keywords))
+
+          # If we've reached the end, start over for continuous coverage
+          if start_idx >= len(all_keywords):
+              start_idx = 0
+              end_idx = min(batch_size, len(all_keywords))
+              state['completed_cycles'] += 1
+
+          current_batch = all_keywords[start_idx:end_idx]
+
+          # Update state for next run
+          state['last_index'] = end_idx
+          state['last_run'] = datetime.now().isoformat()
+
+          # Save updated state
+          with open(state_file, 'w') as f:
+              json.dump(state, f)
+
+          print(f"📊 Wildlife Keywords {start_idx}-{end_idx}/{len(all_keywords)}")
+          print(f"🔄 Completed cycles: {state['completed_cycles']}")
+          print(f"📝 Current batch: {', '.join(current_batch[:5])}...")
+          print(f"🎯 Expected volume: {len(current_batch)} keywords × 9 platforms × 25+ per keyword = {len(current_batch) * 9 * 25:,}+ listings")
+
+          # Set outputs for GitHub Actions
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"keywords={','.join(current_batch)}\n")
+              f.write(f"progress={end_idx}/{len(all_keywords)}\n")
+              f.write(f"cycle={state['completed_cycles']}\n")
+              f.write(f"expected_volume={len(current_batch) * 9 * 25}\n")
+              f.write(f"total_available={len(all_keywords)}\n")
+          EOF
+        env:
+          KEYWORD_BATCH_SIZE: ${{ inputs.keyword_batch_size || '30' }}
+
+      - name: FIXED Wildlife Scan (Intelligent Scoring)
+        id: scan
+        run: |
+          python3 << 'EOF'
+          import asyncio
+          import os
+          import json
+          import logging
+          from datetime import datetime
+          import sys
+
+          # Setup logging
+          logging.basicConfig(level=logging.INFO)
+
+          async def run_fixed_wildlife_scan():
+              try:
+                  # Import the FIXED scanner with intelligent scoring
+                  from fixed_high_volume_scanner import FixedHighVolumeScanner
+                  
+                  # Get keywords from previous step
+                  keywords_str = os.getenv('SCAN_KEYWORDS', '')
+                  if not keywords_str:
+                      logging.error("No keywords provided")
+                      return False
+                  
+                  keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
+                  logging.info(f"🔧 FIXED Wildlife scan with {len(keywords)} keywords from 1,452 total")
+                  
+                  # ALL 9 PLATFORMS for maximum coverage
+                  platforms_str = os.getenv('SCAN_PLATFORMS', 'ebay,craigslist,marktplaats,olx,taobao,aliexpress,mercadolibre,gumtree,avito')
+                  platforms = [p.strip() for p in platforms_str.split(',') if p.strip()]
+                  logging.info(f"🌍 Target platforms: {', '.join(platforms)}")
+                  
+                  async with FixedHighVolumeScanner() as scanner:
+                      # Verify intelligent scoring is enabled
+                      if scanner.threat_scorer:
+                          logging.info("✅ Intelligent threat scoring: ENABLED")
+                      else:
+                          logging.warning("⚠️ Intelligent threat scoring: FALLBACK MODE")
+                      
+                      # Verify keyword loading
+                      logging.info(f"📊 Wildlife keywords loaded: {len(scanner.wildlife_keywords):,}")
+                      if len(scanner.wildlife_keywords) >= 1400:
+                          logging.info("✅ Full multilingual keyword set confirmed")
+                      else:
+                          logging.warning(f"⚠️ Limited keyword set: {len(scanner.wildlife_keywords)}")
+                      
+                      # Run FIXED high-volume scan
+                      results = await scanner.run_fixed_high_volume_scan("wildlife", keywords, platforms)
+                      
+                      logging.info(f"✅ FIXED Wildlife scan completed successfully")
+                      logging.info(f"📊 Results: {results}")
+                      
+                      # Save detailed results
+                      with open('fixed_wildlife_scan_results.json', 'w') as f:
+                          json.dump(results, f, indent=2)
+                      
+                      return True
+                  
+              except ImportError as e:
+                  logging.error(f"FIXED scanner import error: {e}")
+                  logging.error("❌ Fixed scanner not available - critical quality issue!")
+                  return False
+                  
+              except Exception as e:
+                  logging.error(f"Critical error: {e}")
+                  import traceback
+                  traceback.print_exc()
+                  return False
+
+          # Run the FIXED scan
+          success = asyncio.run(run_fixed_wildlife_scan())
+          
+          if not success:
+              print("❌ FIXED scan failed")
+              sys.exit(1)
+          else:
+              print("✅ FIXED scan completed successfully")
+          EOF
+        env:
+          SCAN_KEYWORDS: ${{ steps.load-keywords.outputs.keywords }}
+          SCAN_PLATFORMS: ${{ inputs.platforms || 'ebay,craigslist,marktplaats,olx,taobao,aliexpress,mercadolibre,gumtree,avito' }}
+
+      - name: Report FIXED Wildlife Results
+        if: always()
+        run: |
+          if [ -f fixed_wildlife_scan_results.json ]; then
+            echo "📊 FIXED WILDLIFE SCAN RESULTS:"
+            python3 -c "
+            import json
+            with open('fixed_wildlife_scan_results.json', 'r') as f:
+                results = json.load(f)
+            
+            print(f'   🔧 SCAN TYPE: FIXED {results.get(\"scan_type\", \"unknown\").upper()}')
+            print(f'   📈 TOTAL SCANNED: {results.get(\"total_scanned\", 0):,}')
+            print(f'   💾 TOTAL STORED: {results.get(\"total_stored\", 0):,}')
+            print(f'   🌍 PLATFORMS: {len(results.get(\"platforms_scanned\", []))}')
+            print(f'   🔑 KEYWORDS: {results.get(\"keywords_used\", 0)} (from 1,452 available)')
+            print(f'   ⚡ RATE: {results.get(\"listings_per_minute\", 0):,} listings/minute')
+            print(f'   🧠 INTELLIGENT SCORING: {\"YES\" if results.get(\"intelligent_scoring_enabled\") else \"NO\"}')
+            print(f'   🎯 HIGH THREAT ITEMS: {results.get(\"high_threat_items\", 0):,}')
+            print(f'   🚨 CRITICAL ALERTS: {results.get(\"critical_alerts\", 0):,}')
+            print(f'   👁️  HUMAN REVIEW: {results.get(\"human_review_required\", 0):,}')
+            
+            quality_metrics = results.get('quality_metrics', {})
+            if quality_metrics:
+                print(f'   📈 QUALITY SCORE: {quality_metrics.get(\"quality_score\", 0):.2%}')
+            
+            # Calculate daily projection
+            daily_projection = results.get('total_scanned', 0) * 6  # 6 runs per day (every 4 hours)
+            print(f'   📅 DAILY PROJECTION: {daily_projection:,} listings')
+            
+            if daily_projection >= 50000:
+                print(f'   ✅ WILDLIFE TARGET: On track for 50,000+ daily wildlife listings!')
+            else:
+                print(f'   ⚠️  WILDLIFE TARGET: Below 50,000 daily target')
+            "
+          else
+            echo "❌ No FIXED results file found"
+          fi
+
+          echo "🎯 Keyword Progress: ${{ steps.load-keywords.outputs.progress }}"
+          echo "🔄 Completed Cycles: ${{ steps.load-keywords.outputs.cycle }}"
+          echo "📊 Expected Volume: ${{ steps.load-keywords.outputs.expected_volume }}+"
+          echo "📚 Total Keywords Available: ${{ steps.load-keywords.outputs.total_available }}"
+
+      - name: Upload FIXED results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixed-wildlife-results-${{ github.run_number }}
+          path: |
+            fixed_wildlife_scan_results.json
+            fixed_wildlife_keyword_state.json
+          retention-days: 7
