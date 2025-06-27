@@ -1,0 +1,355 @@
+name: Human Trafficking Scanner
+on:
+  schedule:
+    # Run every 6 hours, offset from wildlife scanner
+    - cron: '30 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Platforms to scan (comma-separated: craigslist,facebook,gumtree,olx)'
+        default: 'craigslist,gumtree,olx'
+        type: string
+      keyword_batch_size:
+        description: 'Number of keywords per batch'
+        default: '10'
+        type: string
+      enable_vision_api:
+        description: 'Enable Google Vision API analysis'
+        default: true
+        type: boolean
+
+jobs:
+  human-trafficking-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50  # Shorter timeout for focused scanning
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-human-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-human-
+    
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install playwright fake-useragent nltk
+        playwright install chromium
+    
+    - name: Download NLTK data
+      run: |
+        python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+    
+    - name: Load human trafficking keywords
+      id: load-keywords
+      run: |
+        python3 << 'EOF'
+        import json
+        import os
+        from datetime import datetime
+        
+        # Human trafficking specific keywords
+        human_trafficking_keywords = [
+            # Employment/Services
+            "massage therapy", "personal service", "companionship", "entertainment work",
+            "modeling opportunity", "dance opportunity", "hostess needed", "waitress needed",
+            "travel companion", "personal assistant", "no experience required",
+            
+            # Service coded language  
+            "body rub", "relaxation therapy", "stress relief", "therapeutic massage",
+            "full service", "outcall", "incall", "24/7 available", "flexible schedule",
+            
+            # Location/Setup terms
+            "private meeting", "discreet encounter", "hotel room", "apartment", "spa",
+            "studio", "massage parlor", "health club", "wellness center",
+            
+            # Financial terms
+            "cash only", "cash preferred", "immediate payment", "daily pay",
+            "housing provided", "transportation provided", "visa assistance",
+            
+            # Descriptive terms (carefully chosen)
+            "young professional", "new talent", "fresh", "energetic", "friendly",
+            "attractive", "petite", "exotic", "international", "experienced",
+            
+            # Service types
+            "massage services", "therapy services", "wellness services", "beauty services",
+            "escort services", "companion services", "entertainment services",
+            
+            # Multilingual terms
+            "masaje", "massage", "服务", "マッサージ", "массаж", "مساج",
+            "travail", "trabajo", "работа", "仕事", "عمل", "काम"
+        ]
+        
+        # Load keyword state
+        state_file = 'human_trafficking_keyword_state.json'
+        default_state = {
+            "last_index": 0,
+            "total_keywords": len(human_trafficking_keywords),
+            "last_run": None,
+            "completed_cycles": 0,
+            "high_priority_platforms": ["craigslist", "gumtree", "olx", "facebook"]
+        }
+        
+        try:
+            with open(state_file, 'r') as f:
+                state = json.load(f)
+        except FileNotFoundError:
+            state = default_state
+            state['total_keywords'] = len(human_trafficking_keywords)
+        
+        # Calculate batch for this run
+        batch_size = int(os.getenv('KEYWORD_BATCH_SIZE', '10'))
+        start_idx = state['last_index']
+        end_idx = min(start_idx + batch_size, len(human_trafficking_keywords))
+        
+        # If we've reached the end, start over
+        if start_idx >= len(human_trafficking_keywords):
+            start_idx = 0
+            end_idx = min(batch_size, len(human_trafficking_keywords))
+            state['completed_cycles'] += 1
+        
+        current_batch = human_trafficking_keywords[start_idx:end_idx]
+        
+        # Update state for next run
+        state['last_index'] = end_idx
+        state['last_run'] = str(datetime.now())
+        
+        # Save updated state
+        with open(state_file, 'w') as f:
+            json.dump(state, f)
+        
+        print(f"Human trafficking keywords {start_idx}-{end_idx}/{len(human_trafficking_keywords)}")
+        print(f"Current batch: {', '.join(current_batch[:3])}...")
+        print(f"Completed cycles: {state['completed_cycles']}")
+        
+        # Set outputs for GitHub Actions
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"keywords={','.join(current_batch)}\n")
+            f.write(f"progress={end_idx}/{len(human_trafficking_keywords)}\n")
+            f.write(f"cycle={state['completed_cycles']}\n")
+        EOF
+      env:
+        KEYWORD_BATCH_SIZE: ${{ inputs.keyword_batch_size || '10' }}
+    
+    - name: Human Trafficking Scan
+      id: scan
+      run: |
+        python3 << 'EOF'
+        import asyncio
+        import os
+        import json
+        import logging
+        from datetime import datetime
+        import sys
+        
+        # Setup logging
+        logging.basicConfig(level=logging.INFO)
+        
+        async def run_human_trafficking_scan():
+            try:
+                # Import components
+                from enhanced_platforms.enhanced_threat_scorer import EnhancedThreatScorer
+                from enhanced_platforms.google_vision_controller import GoogleVisionController
+                from complete_enhanced_scanner import CompleteEnhancedScanner
+                
+                # Get keywords from previous step
+                keywords_str = os.getenv('SCAN_KEYWORDS', '')
+                if not keywords_str:
+                    logging.error("No keywords provided")
+                    return False
+                
+                keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
+                logging.info(f"Human trafficking scan with {len(keywords)} keywords")
+                
+                # Get platform list - focus on high-risk platforms
+                platforms_str = os.getenv('SCAN_PLATFORMS', 'craigslist,gumtree,olx')
+                platforms = [p.strip() for p in platforms_str.split(',') if p.strip()]
+                logging.info(f"Target platforms: {', '.join(platforms)}")
+                
+                results = {
+                    'total_scanned': 0,
+                    'total_stored': 0,
+                    'human_trafficking_alerts': 0,
+                    'critical_alerts': 0,
+                    'human_review_required': 0,
+                    'vision_analyzed': 0,
+                    'platforms_scanned': platforms,
+                    'errors': []
+                }
+                
+                # Initialize scanners
+                scorer = EnhancedThreatScorer()
+                vision = GoogleVisionController()
+                
+                async with CompleteEnhancedScanner() as base_scanner:
+                    all_results = []
+                    
+                    # Scan each platform
+                    for platform in platforms:
+                        try:
+                            logging.info(f"Scanning {platform} for human trafficking...")
+                            
+                            # Use base scanner for most platforms
+                            platform_results = await base_scanner.scan_platform_with_keywords(
+                                platform, keywords
+                            )
+                            
+                            # Enhanced scoring for each result
+                            enhanced_results = []
+                            for result in platform_results:
+                                # Calculate original score
+                                original_score = base_scanner.calculate_threat_score(result)
+                                
+                                # Enhanced analysis
+                                analysis = scorer.enhance_existing_score(result, original_score)
+                                
+                                # Focus on human trafficking detections
+                                if (analysis.threat_category.value in ['HUMAN_TRAFFICKING', 'BOTH'] or
+                                    analysis.requires_human_review):
+                                    
+                                    # Vision analysis for suspicious listings
+                                    vision_analysis = None
+                                    if result.get('image_url') and vision.can_use_quota()[0]:
+                                        vision_analysis = await vision.analyze_listing_image(
+                                            result, analysis.__dict__
+                                        )
+                                        if vision_analysis:
+                                            results['vision_analyzed'] += 1
+                                    
+                                    # Prepare enhanced result
+                                    enhanced_result = result.copy()
+                                    enhanced_result.update({
+                                        'threat_score': analysis.enhanced_score,
+                                        'threat_level': analysis.threat_level.value,
+                                        'threat_category': analysis.threat_category.value,
+                                        'requires_human_review': analysis.requires_human_review,
+                                        'human_trafficking_indicators': analysis.human_trafficking_indicators,
+                                        'enhancement_reasoning': analysis.reasoning,
+                                        'vision_analyzed': vision_analysis is not None
+                                    })
+                                    
+                                    enhanced_results.append(enhanced_result)
+                                    
+                                    # Count alerts
+                                    if analysis.threat_category.value in ['HUMAN_TRAFFICKING', 'BOTH']:
+                                        results['human_trafficking_alerts'] += 1
+                                    
+                                    if analysis.threat_level.value == 'CRITICAL':
+                                        results['critical_alerts'] += 1
+                                    
+                                    if analysis.requires_human_review:
+                                        results['human_review_required'] += 1
+                            
+                            all_results.extend(enhanced_results)
+                            logging.info(f"{platform}: {len(enhanced_results)} suspicious listings found")
+                            
+                        except Exception as e:
+                            logging.error(f"Error scanning {platform}: {e}")
+                            results['errors'].append(f"{platform}: {str(e)}")
+                            continue
+                    
+                    # Store results
+                    if all_results:
+                        stored_count = await base_scanner.store_unique_results(
+                            "human_trafficking_scan", all_results
+                        )
+                        results['total_stored'] = stored_count
+                    
+                    results['total_scanned'] = len(all_results)
+                    
+                    logging.info(f"✅ Human trafficking scan completed")
+                    logging.info(f"📊 Results: {results}")
+                
+                # Save results
+                with open('human_trafficking_results.json', 'w') as f:
+                    json.dump(results, f)
+                
+                return True
+                
+            except Exception as e:
+                logging.error(f"Critical error: {e}")
+                import traceback
+                traceback.print_exc()
+                return False
+        
+        # Run the scan
+        success = asyncio.run(run_human_trafficking_scan())
+        if not success:
+            sys.exit(1)
+        EOF
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+        SCAN_KEYWORDS: ${{ steps.load-keywords.outputs.keywords }}
+        SCAN_PLATFORMS: ${{ inputs.platforms || 'craigslist,gumtree,olx' }}
+        ENABLE_VISION: ${{ inputs.enable_vision_api || 'true' }}
+    
+    - name: Alert on Critical Findings
+      if: always()
+      run: |
+        if [ -f human_trafficking_results.json ]; then
+          python3 << 'EOF'
+        import json
+        
+        with open('human_trafficking_results.json', 'r') as f:
+            results = json.load(f)
+        
+        critical_alerts = results.get('critical_alerts', 0)
+        human_review = results.get('human_review_required', 0)
+        
+        print(f"🚨 HUMAN TRAFFICKING SCAN RESULTS:")
+        print(f"   Total Scanned: {results.get('total_scanned', 0):,}")
+        print(f"   Stored: {results.get('total_stored', 0):,}")
+        print(f"   Human Trafficking Alerts: {results.get('human_trafficking_alerts', 0):,}")
+        print(f"   Critical Alerts: {critical_alerts:,}")
+        print(f"   Human Review Required: {human_review:,}")
+        print(f"   Vision Analyzed: {results.get('vision_analyzed', 0):,}")
+        
+        if critical_alerts > 0:
+            print(f"⚠️  CRITICAL: {critical_alerts} high-priority human trafficking alerts!")
+            print(f"🔍 IMMEDIATE REVIEW REQUIRED for flagged listings")
+        
+        if results.get('errors'):
+            print(f"❌ Errors encountered: {len(results['errors'])}")
+            for error in results['errors'][:3]:
+                print(f"   • {error}")
+        EOF
+        else
+          echo "❌ No results file found"
+        fi
+        
+        echo "🎯 Keyword Progress: ${{ steps.load-keywords.outputs.progress }}"
+        echo "🔄 Completed Cycles: ${{ steps.load-keywords.outputs.cycle }}"
+    
+    - name: Upload results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: human-trafficking-results-${{ github.run_number }}
+        path: |
+          human_trafficking_results.json
+          human_trafficking_keyword_state.json
+        retention-days: 30  # Keep longer for human trafficking results
+    
+    - name: Save keyword state
+      if: always()
+      run: |
+        if [ -f human_trafficking_keyword_state.json ]; then
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add human_trafficking_keyword_state.json
+          git diff --staged --quiet || git commit -m "Update human trafficking keyword state - Run ${{ github.run_number }}"
+          echo "Human trafficking keyword state updated locally"
+        fi

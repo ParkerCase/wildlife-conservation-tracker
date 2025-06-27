@@ -188,8 +188,9 @@ class ProductionGumtreeScanner:
                         await page.goto(url, timeout=20000)
                         await page.wait_for_timeout(3000)
                         
-                        # Gumtree item selectors (they change frequently)
+                        # Gumtree item selectors (updated based on verification)
                         selectors = [
+                            'article',  # Current working selector
                             '.user-ad-collection-new-design',
                             '.user-ad-row', 
                             '.user-ad-collection',
@@ -209,9 +210,9 @@ class ProductionGumtreeScanner:
                         processed_items = 0
                         for item in items[:15]:  # More items per search
                             try:
-                                # Extract title
+                                # Extract title (updated selectors)
                                 title_elem = await item.query_selector(
-                                    '.user-ad-title, h2 a, .ad-listing-title, [data-q="ad-title"] a, .listing-title'
+                                    'h2 a, h3 a, .user-ad-title, .ad-listing-title, [data-q="ad-title"] a, .listing-title, a[href*="/p/"]'
                                 )
                                 title = await title_elem.inner_text() if title_elem else ""
                                 
