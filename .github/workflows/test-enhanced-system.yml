@@ -3,15 +3,15 @@ on:
   workflow_dispatch:
     inputs:
       test_vision_api:
-        description: 'Test Google Vision API integration'
+        description: "Test Google Vision API integration"
         default: false
         type: boolean
       test_platforms:
-        description: 'Test new platforms (AliExpress, Taobao)'
+        description: "Test new platforms (AliExpress, Taobao)"
         default: true
         type: boolean
       test_enhanced_scoring:
-        description: 'Test enhanced threat scoring'
+        description: "Test enhanced threat scoring"
         default: true
         type: boolean
 
@@ -19,25 +19,27 @@ jobs:
   test-enhanced-system:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install playwright fake-useragent nltk
-        playwright install chromium
-    
-    - name: Download NLTK data
-      run: |
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install playwright fake-useragent nltk
+          playwright install chromium
+
+      - name: Download NLTK data
+        run: |
+          python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+
       - name: Load environment variables
         run: |
           # Load environment variables from backend/.env
@@ -48,287 +50,285 @@ jobs:
             echo "Warning: backend/.env not found, using GitHub secrets"
           fi
 
-        python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
-    
-    - name: Test Component Imports
-      run: |
-        python3 -c "
-        print('🧪 Testing component imports...')
-        
-        try:
-            from enhanced_platforms.aliexpress_scanner import AliExpressScanner
-            print('✅ AliExpress Scanner: Import Success')
-        except Exception as e:
-            print(f'❌ AliExpress Scanner: {e}')
-            exit(1)
-        
-        try:
-            from enhanced_platforms.taobao_scanner import TaobaoScanner
-            print('✅ Taobao Scanner: Import Success')
-        except Exception as e:
-            print(f'❌ Taobao Scanner: {e}')
-            exit(1)
-        
-        try:
-            from enhanced_platforms.enhanced_threat_scorer import EnhancedThreatScorer
-            print('✅ Enhanced Threat Scorer: Import Success')
-        except Exception as e:
-            print(f'❌ Enhanced Threat Scorer: {e}')
-            exit(1)
-        
-        try:
-            from enhanced_platforms.google_vision_controller import GoogleVisionController
-            print('✅ Google Vision Controller: Import Success')
-        except Exception as e:
-            print(f'❌ Google Vision Controller: {e}')
-            exit(1)
-        
-        try:
-            from ultimate_wildguard_scanner import UltimateWildGuardScanner
-            print('✅ Ultimate Scanner: Import Success')
-        except Exception as e:
-            print(f'❌ Ultimate Scanner: {e}')
-            exit(1)
-        
-        print('🎯 All components imported successfully!')
-        "
-    
-    - name: Test Enhanced Scoring
-      if: ${{ inputs.test_enhanced_scoring }}
-      run: |
-        python3 enhanced_platforms/enhanced_threat_scorer.py
-    
-    - name: Test Multilingual Keywords
-      run: |
-        python3 -c "
-        import json
-        
-        print('🌍 Testing multilingual keywords...')
-        
-        try:
-            with open('multilingual_wildlife_keywords.json', 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            keywords_by_language = data['keywords_by_language']
-            total_keywords = sum(len(words) for words in keywords_by_language.values())
-            
-            print(f'✅ Languages: {len(keywords_by_language)}')
-            print(f'✅ Total keywords: {total_keywords:,}')
-            
-            # Test key languages
-            key_languages = ['en', 'zh', 'es', 'fr']
-            for lang in key_languages:
-                if lang in keywords_by_language:
-                    count = len(keywords_by_language[lang])
-                    print(f'✅ {lang}: {count} keywords')
-                else:
-                    print(f'❌ Missing {lang} keywords')
-                    exit(1)
-            
-            print('🎯 Multilingual keywords loaded successfully!')
-            
-        except Exception as e:
-            print(f'❌ Multilingual keywords error: {e}')
-            exit(1)
-        "
-    
-    - name: Test Platform Scanners
-      if: ${{ inputs.test_platforms }}
-      run: |
-        python3 << 'EOF'
-        import asyncio
-        import logging
-        
-        logging.basicConfig(level=logging.INFO)
-        
-        async def test_platforms():
-            print("🛒 Testing new platform scanners...")
-            
-            # Test AliExpress
-            try:
-                from enhanced_platforms.aliexpress_scanner import AliExpressScanner
-                
-                async with AliExpressScanner() as scanner:
-                    # Test with safe keywords to avoid issues
-                    results = await scanner.search_wildlife_terms(['traditional medicine'])
-                    
-                    if results:
-                        print(f"✅ AliExpress: {len(results)} results found")
-                        print(f"   Sample: {results[0]['title'][:50]}...")
-                    else:
-                        print("⚠️ AliExpress: No results (may be expected)")
-                    
-            except Exception as e:
-                print(f"❌ AliExpress test error: {e}")
-            
-            # Test Taobao
-            try:
-                from enhanced_platforms.taobao_scanner import TaobaoScanner
-                
-                async with TaobaoScanner() as scanner:
-                    results = await scanner.search_wildlife_terms(['traditional medicine'])
-                    
-                    if results:
-                        print(f"✅ Taobao: {len(results)} results found")
-                        print(f"   Sample: {results[0]['title'][:50]}...")
-                    else:
-                        print("⚠️ Taobao: No results (anti-bot measures expected)")
-                    
-            except Exception as e:
-                print(f"❌ Taobao test error: {e}")
-            
-            print("🎯 Platform scanner tests completed")
-        
-        asyncio.run(test_platforms())
-        EOF
-    
-    - name: Test Google Vision Integration
-      if: ${{ inputs.test_vision_api }}
-      run: |
-        python3 << 'EOF'
-        import os
-        
-        print("📸 Testing Google Vision API integration...")
-        
-        try:
-            from enhanced_platforms.google_vision_controller import GoogleVisionController
-            
-            vision = GoogleVisionController()
-            status = vision.get_quota_status()
-            
-            print(f"✅ Vision API controller initialized")
-            print(f"✅ Quota status: {status['quota_used']}/{status['quota_total']} used")
-            print(f"✅ API key configured: {status['api_key_configured']}")
-            print(f"✅ Daily budget: {status['daily_budget_remaining']}")
-            
-            # Test analysis criteria
-            test_listing = {
-                'enhanced_score': 55,
-                'threat_category': 'WILDLIFE',
-                'requires_human_review': False,
-                'image_url': 'https://example.com/test.jpg'
-            }
-            
-            should_analyze, reason = vision.should_analyze_image(test_listing, test_listing)
-            print(f"✅ Analysis criteria working: {should_analyze} - {reason}")
-            
-            print("🎯 Google Vision integration ready")
-            
-        except Exception as e:
-            print(f"❌ Vision API test error: {e}")
-            if 'GOOGLE_VISION_API_KEY' not in os.environ:
-                print("💡 GOOGLE_VISION_API_KEY not configured - this is optional")
-            else:
-                exit(1)
-        EOF
-      env:
-        GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
-    
-    - name: Test Environment Configuration
-      run: |
-        python3 -c "
-        import os
-        
-        print('🔧 Testing environment configuration...')
-        
-        required_vars = {
-            'SUPABASE_URL': 'Supabase project URL',
-            'SUPABASE_ANON_KEY': 'Supabase anon key'
-        }
-        
-        optional_vars = {
-            'GOOGLE_VISION_API_KEY': 'Google Vision API key',
-            'EBAY_APP_ID': 'eBay application ID',
-            'EBAY_CERT_ID': 'eBay certificate ID'
-        }
-        
-        all_good = True
-        
-        for var, description in required_vars.items():
-            if os.getenv(var):
-                print(f'✅ {var}: Configured')
-            else:
-                print(f'❌ {var}: Missing ({description})')
-                all_good = False
-        
-        for var, description in optional_vars.items():
-            if os.getenv(var):
-                print(f'✅ {var}: Configured')
-            else:
-                print(f'⚠️ {var}: Not configured ({description})')
-        
-        if all_good:
-            print('🎯 Environment configuration: Ready')
-        else:
-            print('❌ Environment configuration: Issues found')
-            exit(1)
-        "
-      env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
-        EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
-        EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
-    
-    - name: Test Database Schema Compatibility
-      run: |
-        python3 -c "
-        print('🗃️ Testing database schema compatibility...')
-        
-        # Test that we can format data for new schema
-        test_detection = {
-            'evidence_id': 'TEST-ENHANCED-001',
-            'timestamp': '2025-06-27T12:00:00Z',
-            'platform': 'test',
-            'threat_score': 85,
-            'threat_level': 'CRITICAL',
-            'threat_category': 'wildlife',
-            'confidence_score': 0.92,
-            'requires_human_review': True,
-            'enhancement_notes': 'Test detection with enhanced scoring',
-            'vision_analyzed': False
-        }
-        
-        # Verify all fields are present
-        required_fields = [
-            'evidence_id', 'timestamp', 'platform', 'threat_score', 
-            'threat_level', 'threat_category', 'confidence_score',
-            'requires_human_review', 'enhancement_notes', 'vision_analyzed'
-        ]
-        
-        for field in required_fields:
-            if field in test_detection:
-                print(f'✅ Field {field}: Present')
-            else:
-                print(f'❌ Field {field}: Missing')
-                exit(1)
-        
-        print('🎯 Database schema compatibility: Ready')
-        "
-    
-    - name: Report Test Results
-      if: always()
-      run: |
-        echo "📊 ENHANCED SYSTEM TEST COMPLETED"
-        echo "================================="
-        echo "✅ Component imports: Verified"
-        echo "✅ Enhanced scoring: Tested"
-        echo "✅ Multilingual keywords: Loaded"
-        echo "✅ Environment configuration: Checked"
-        echo "✅ Database schema: Compatible"
-        
-        if [ "${{ inputs.test_platforms }}" == "true" ]; then
-          echo "✅ Platform scanners: Tested"
-        fi
-        
-        if [ "${{ inputs.test_vision_api }}" == "true" ]; then
-          echo "✅ Vision API integration: Tested"
-        fi
-        
-        echo ""
-        echo "🚀 SYSTEM STATUS: READY FOR DEPLOYMENT"
-        echo "🎯 Next steps:"
-        echo "   1. Configure secrets in GitHub"
-        echo "   2. Run enhanced wildlife scanner"
-        echo "   3. Run human trafficking scanner"
-        echo "   4. Monitor results and quota usage"
+      - name: Test Component Imports
+        run: |
+          python3 -c "
+          print('🧪 Testing component imports...')
+
+          try:
+              from enhanced_platforms.aliexpress_scanner import AliExpressScanner
+              print('✅ AliExpress Scanner: Import Success')
+          except Exception as e:
+              print(f'❌ AliExpress Scanner: {e}')
+              exit(1)
+
+          try:
+              from enhanced_platforms.taobao_scanner import TaobaoScanner
+              print('✅ Taobao Scanner: Import Success')
+          except Exception as e:
+              print(f'❌ Taobao Scanner: {e}')
+              exit(1)
+
+          try:
+              from enhanced_platforms.enhanced_threat_scorer import EnhancedThreatScorer
+              print('✅ Enhanced Threat Scorer: Import Success')
+          except Exception as e:
+              print(f'❌ Enhanced Threat Scorer: {e}')
+              exit(1)
+
+          try:
+              from enhanced_platforms.google_vision_controller import GoogleVisionController
+              print('✅ Google Vision Controller: Import Success')
+          except Exception as e:
+              print(f'❌ Google Vision Controller: {e}')
+              exit(1)
+
+          try:
+              from ultimate_wildguard_scanner import UltimateWildGuardScanner
+              print('✅ Ultimate Scanner: Import Success')
+          except Exception as e:
+              print(f'❌ Ultimate Scanner: {e}')
+              exit(1)
+
+          print('🎯 All components imported successfully!')
+          "
+
+      - name: Test Enhanced Scoring
+        if: ${{ inputs.test_enhanced_scoring }}
+        run: |
+          python3 enhanced_platforms/enhanced_threat_scorer.py
+
+      - name: Test Multilingual Keywords
+        run: |
+          python3 -c "
+          import json
+
+          print('🌍 Testing multilingual keywords...')
+
+          try:
+              with open('multilingual_wildlife_keywords.json', 'r', encoding='utf-8') as f:
+                  data = json.load(f)
+              
+              keywords_by_language = data['keywords_by_language']
+              total_keywords = sum(len(words) for words in keywords_by_language.values())
+              
+              print(f'✅ Languages: {len(keywords_by_language)}')
+              print(f'✅ Total keywords: {total_keywords:,}')
+              
+              # Test key languages
+              key_languages = ['en', 'zh', 'es', 'fr']
+              for lang in key_languages:
+                  if lang in keywords_by_language:
+                      count = len(keywords_by_language[lang])
+                      print(f'✅ {lang}: {count} keywords')
+                  else:
+                      print(f'❌ Missing {lang} keywords')
+                      exit(1)
+              
+              print('🎯 Multilingual keywords loaded successfully!')
+              
+          except Exception as e:
+              print(f'❌ Multilingual keywords error: {e}')
+              exit(1)
+          "
+
+      - name: Test Platform Scanners
+        if: ${{ inputs.test_platforms }}
+        run: |
+          python3 << 'EOF'
+          import asyncio
+          import logging
+
+          logging.basicConfig(level=logging.INFO)
+
+          async def test_platforms():
+              print("🛒 Testing new platform scanners...")
+              
+              # Test AliExpress
+              try:
+                  from enhanced_platforms.aliexpress_scanner import AliExpressScanner
+                  
+                  async with AliExpressScanner() as scanner:
+                      # Test with safe keywords to avoid issues
+                      results = await scanner.search_wildlife_terms(['traditional medicine'])
+                      
+                      if results:
+                          print(f"✅ AliExpress: {len(results)} results found")
+                          print(f"   Sample: {results[0]['title'][:50]}...")
+                      else:
+                          print("⚠️ AliExpress: No results (may be expected)")
+                      
+              except Exception as e:
+                  print(f"❌ AliExpress test error: {e}")
+              
+              # Test Taobao
+              try:
+                  from enhanced_platforms.taobao_scanner import TaobaoScanner
+                  
+                  async with TaobaoScanner() as scanner:
+                      results = await scanner.search_wildlife_terms(['traditional medicine'])
+                      
+                      if results:
+                          print(f"✅ Taobao: {len(results)} results found")
+                          print(f"   Sample: {results[0]['title'][:50]}...")
+                      else:
+                          print("⚠️ Taobao: No results (anti-bot measures expected)")
+                      
+              except Exception as e:
+                  print(f"❌ Taobao test error: {e}")
+              
+              print("🎯 Platform scanner tests completed")
+
+          asyncio.run(test_platforms())
+          EOF
+
+      - name: Test Google Vision Integration
+        if: ${{ inputs.test_vision_api }}
+        run: |
+          python3 << 'EOF'
+          import os
+
+          print("📸 Testing Google Vision API integration...")
+
+          try:
+              from enhanced_platforms.google_vision_controller import GoogleVisionController
+              
+              vision = GoogleVisionController()
+              status = vision.get_quota_status()
+              
+              print(f"✅ Vision API controller initialized")
+              print(f"✅ Quota status: {status['quota_used']}/{status['quota_total']} used")
+              print(f"✅ API key configured: {status['api_key_configured']}")
+              print(f"✅ Daily budget: {status['daily_budget_remaining']}")
+              
+              # Test analysis criteria
+              test_listing = {
+                  'enhanced_score': 55,
+                  'threat_category': 'WILDLIFE',
+                  'requires_human_review': False,
+                  'image_url': 'https://example.com/test.jpg'
+              }
+              
+              should_analyze, reason = vision.should_analyze_image(test_listing, test_listing)
+              print(f"✅ Analysis criteria working: {should_analyze} - {reason}")
+              
+              print("🎯 Google Vision integration ready")
+              
+          except Exception as e:
+              print(f"❌ Vision API test error: {e}")
+              if 'GOOGLE_VISION_API_KEY' not in os.environ:
+                  print("💡 GOOGLE_VISION_API_KEY not configured - this is optional")
+              else:
+                  exit(1)
+          EOF
+        env:
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+
+      - name: Test Environment Configuration
+        run: |
+          python3 -c "
+          import os
+
+          print('🔧 Testing environment configuration...')
+
+          required_vars = {
+              'SUPABASE_URL': 'Supabase project URL',
+              'SUPABASE_ANON_KEY': 'Supabase anon key'
+          }
+
+          optional_vars = {
+              'GOOGLE_VISION_API_KEY': 'Google Vision API key',
+              'EBAY_APP_ID': 'eBay application ID',
+              'EBAY_CERT_ID': 'eBay certificate ID'
+          }
+
+          all_good = True
+
+          for var, description in required_vars.items():
+              if os.getenv(var):
+                  print(f'✅ {var}: Configured')
+              else:
+                  print(f'❌ {var}: Missing ({description})')
+                  all_good = False
+
+          for var, description in optional_vars.items():
+              if os.getenv(var):
+                  print(f'✅ {var}: Configured')
+              else:
+                  print(f'⚠️ {var}: Not configured ({description})')
+
+          if all_good:
+              print('🎯 Environment configuration: Ready')
+          else:
+              print('❌ Environment configuration: Issues found')
+              exit(1)
+          "
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+          EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
+          EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
+
+      - name: Test Database Schema Compatibility
+        run: |
+          python3 -c "
+          print('🗃️ Testing database schema compatibility...')
+
+          # Test that we can format data for new schema
+          test_detection = {
+              'evidence_id': 'TEST-ENHANCED-001',
+              'timestamp': '2025-06-27T12:00:00Z',
+              'platform': 'test',
+              'threat_score': 85,
+              'threat_level': 'CRITICAL',
+              'threat_category': 'wildlife',
+              'confidence_score': 0.92,
+              'requires_human_review': True,
+              'enhancement_notes': 'Test detection with enhanced scoring',
+              'vision_analyzed': False
+          }
+
+          # Verify all fields are present
+          required_fields = [
+              'evidence_id', 'timestamp', 'platform', 'threat_score', 
+              'threat_level', 'threat_category', 'confidence_score',
+              'requires_human_review', 'enhancement_notes', 'vision_analyzed'
+          ]
+
+          for field in required_fields:
+              if field in test_detection:
+                  print(f'✅ Field {field}: Present')
+              else:
+                  print(f'❌ Field {field}: Missing')
+                  exit(1)
+
+          print('🎯 Database schema compatibility: Ready')
+          "
+
+      - name: Report Test Results
+        if: always()
+        run: |
+          echo "📊 ENHANCED SYSTEM TEST COMPLETED"
+          echo "================================="
+          echo "✅ Component imports: Verified"
+          echo "✅ Enhanced scoring: Tested"
+          echo "✅ Multilingual keywords: Loaded"
+          echo "✅ Environment configuration: Checked"
+          echo "✅ Database schema: Compatible"
+
+          if [ "${{ inputs.test_platforms }}" == "true" ]; then
+            echo "✅ Platform scanners: Tested"
+          fi
+
+          if [ "${{ inputs.test_vision_api }}" == "true" ]; then
+            echo "✅ Vision API integration: Tested"
+          fi
+
+          echo ""
+          echo "🚀 SYSTEM STATUS: READY FOR DEPLOYMENT"
+          echo "🎯 Next steps:"
+          echo "   1. Configure secrets in GitHub"
+          echo "   2. Run enhanced wildlife scanner"
+          echo "   3. Run human trafficking scanner"
+          echo "   4. Monitor results and quota usage"
