@@ -51,16 +51,6 @@ jobs:
         run: |
           python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
 
-      - name: Load environment variables
-        run: |
-          # Load environment variables from backend/.env
-          if [ -f backend/.env ]; then
-            export $(cat backend/.env | grep -v '^#' | xargs)
-            echo "Environment variables loaded from backend/.env"
-          else
-            echo "Warning: backend/.env not found, using GitHub secrets"
-          fi
-
       - name: Load keyword state
         id: load-keywords
         run: |

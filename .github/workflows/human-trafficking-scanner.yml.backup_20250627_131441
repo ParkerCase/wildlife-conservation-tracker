@@ -49,16 +49,6 @@ jobs:
     
     - name: Download NLTK data
       run: |
-      - name: Load environment variables
-        run: |
-          # Load environment variables from backend/.env
-          if [ -f backend/.env ]; then
-            export $(cat backend/.env | grep -v '^#' | xargs)
-            echo "Environment variables loaded from backend/.env"
-          else
-            echo "Warning: backend/.env not found, using GitHub secrets"
-          fi
-
         python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
     
     - name: Load human trafficking keywords

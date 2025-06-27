@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.production
+GITHUB_SECRETS_SETUP.md
 
 # Python
 __pycache__/
@@ -51,6 +52,7 @@ logs/
 # Database
 *.db
 *.sqlite
+
 
 # Secrets
 secrets/
