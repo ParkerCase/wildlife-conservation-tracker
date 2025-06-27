@@ -60,13 +60,15 @@ jobs:
 
       - name: Load environment variables
         run: |
-          # Load environment variables from backend/.env (for local testing)
-          if [ -f backend/.env ]; then
-            export $(cat backend/.env | grep -v '^#' | xargs)
-            echo "Environment variables loaded from backend/.env"
-          else
-            echo "backend/.env not found, using GitHub secrets"
-          fi
+          # In GitHub Actions, we use secrets directly, not .env files
+          echo "🔧 Loading environment variables from GitHub Secrets..."
+
+          # Set environment variables from GitHub Secrets
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> $GITHUB_ENV
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> $GITHUB_ENV
+          echo "GOOGLE_VISION_API_KEY=${{ secrets.GOOGLE_VISION_API_KEY }}" >> $GITHUB_ENV
+          echo "EBAY_APP_ID=${{ secrets.EBAY_APP_ID }}" >> $GITHUB_ENV
+          echo "EBAY_CERT_ID=${{ secrets.EBAY_CERT_ID }}" >> $GITHUB_ENV
 
           # Verify required environment variables are set
           echo "Checking environment variables..."
@@ -403,9 +405,6 @@ jobs:
               print("✅ Scan completed successfully")
           EOF
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
           SCAN_KEYWORDS: ${{ steps.load-keywords.outputs.keywords }}
           SCAN_PLATFORMS: ${{ inputs.platforms || 'craigslist,gumtree,olx' }}
           ENABLE_VISION: ${{ inputs.enable_vision_api || 'true' }}

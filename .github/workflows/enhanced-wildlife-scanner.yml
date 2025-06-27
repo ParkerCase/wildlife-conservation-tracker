@@ -60,12 +60,48 @@ jobs:
 
       - name: Load environment variables
         run: |
-          # Load environment variables from backend/.env
-          if [ -f backend/.env ]; then
-            export $(cat backend/.env | grep -v '^#' | xargs)
-            echo "Environment variables loaded from backend/.env"
+          # In GitHub Actions, we use secrets directly, not .env files
+          echo "🔧 Loading environment variables from GitHub Secrets..."
+
+          # Set environment variables from GitHub Secrets
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> $GITHUB_ENV
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> $GITHUB_ENV
+          echo "GOOGLE_VISION_API_KEY=${{ secrets.GOOGLE_VISION_API_KEY }}" >> $GITHUB_ENV
+          echo "EBAY_APP_ID=${{ secrets.EBAY_APP_ID }}" >> $GITHUB_ENV
+          echo "EBAY_CERT_ID=${{ secrets.EBAY_CERT_ID }}" >> $GITHUB_ENV
+
+          # Verify required environment variables are set
+          echo "Checking environment variables..."
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "❌ SUPABASE_URL not set"
+            exit 1
           else
-            echo "Warning: backend/.env not found, using GitHub secrets"
+            echo "✅ SUPABASE_URL is set"
+          fi
+
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "❌ SUPABASE_ANON_KEY not set"
+            exit 1
+          else
+            echo "✅ SUPABASE_ANON_KEY is set"
+          fi
+
+          if [ -z "$GOOGLE_VISION_API_KEY" ]; then
+            echo "⚠️ GOOGLE_VISION_API_KEY not set (optional)"
+          else
+            echo "✅ GOOGLE_VISION_API_KEY is set"
+          fi
+
+          if [ -z "$EBAY_APP_ID" ]; then
+            echo "⚠️ EBAY_APP_ID not set (optional)"
+          else
+            echo "✅ EBAY_APP_ID is set"
+          fi
+
+          if [ -z "$EBAY_CERT_ID" ]; then
+            echo "⚠️ EBAY_CERT_ID not set (optional)"
+          else
+            echo "✅ EBAY_CERT_ID is set"
           fi
 
       - name: Load keyword state
@@ -220,11 +256,6 @@ jobs:
               sys.exit(1)
           EOF
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
-          EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
-          EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
           SCAN_KEYWORDS: ${{ steps.load-keywords.outputs.keywords }}
           SCAN_PLATFORMS: ${{ inputs.platforms || 'ebay,aliexpress,taobao,craigslist,olx' }}
           ENABLE_VISION: ${{ inputs.enable_vision_api || 'true' }}
