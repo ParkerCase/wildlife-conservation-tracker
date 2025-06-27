@@ -795,7 +795,7 @@ const WildlifeDashboard = ({ onLogout }) => {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center text-white">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <div className="text-xl">Connecting to Enhanced Supabase...</div>
+          <div className="text-xl">Connecting to Database...</div>
           <div className="text-slate-400 mt-2">
             Loading real-time wildlife + human trafficking data
           </div>
