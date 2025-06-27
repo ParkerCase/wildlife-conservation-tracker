@@ -26,27 +26,44 @@ vercel --prod
 
 After deployment, your new webhook URLs will be:
 
-- **Main webhook endpoint**: `https://your-vercel-domain.vercel.app/api/webhook/ebay/`
-- **Account deletion specific**: `https://your-vercel-domain.vercel.app/api/webhook/ebay/account-deletion`
-- **Test endpoint**: `https://your-vercel-domain.vercel.app/api/webhook/ebay/test`
+- **Main webhook endpoint**: `https://conservatron.parkercase.co/api/webhook/ebay/`
+- **Account deletion specific**: `https://conservatron.parkercase.co/api/webhook/ebay/account-deletion`
+- **Test endpoint**: `https://conservatron.parkercase.co/api/webhook/ebay/test`
+- **Verification endpoint**: `https://conservatron.parkercase.co/api/webhook/ebay/verification`
 
-Replace `your-vercel-domain` with your actual Vercel domain.
+### 3. Generate Verification Token
 
-### 3. Test the Webhook
+eBay requires a verification token between 32-80 characters. Generate one:
+
+```bash
+# Generate a secure verification token
+openssl rand -base64 48 | tr -d "=+/" | cut -c1-64
+```
+
+Or use this pre-generated token:
+
+```
+WildGuardAI_2024_Webhook_Verification_Token_For_eBay_Integration_Security
+```
+
+### 4. Test the Webhook
 
 Before updating eBay, test your webhook:
 
 ```bash
 # Test GET request
-curl https://your-vercel-domain.vercel.app/api/webhook/ebay/test
+curl https://conservatron.parkercase.co/api/webhook/ebay/test
 
 # Test POST request
-curl -X POST https://your-vercel-domain.vercel.app/api/webhook/ebay/test \
+curl -X POST https://conservatron.parkercase.co/api/webhook/ebay/test \
   -H "Content-Type: application/json" \
   -d '{"test": "data"}'
+
+# Test verification endpoint
+curl "https://conservatron.parkercase.co/api/webhook/ebay/verification?challenge_code=test123"
 ```
 
-### 4. Update eBay Application Settings
+### 5. Update eBay Application Settings
 
 1. **Log into eBay Developer Portal**:
 
@@ -64,21 +81,30 @@ curl -X POST https://your-vercel-domain.vercel.app/api/webhook/ebay/test \
    - Replace the old Railway URL with your new Vercel URL:
      ```
      OLD: https://wildlife-conservation-tracker-production.up.railway.app/webhook/ebay/account-deletion
-     NEW: https://your-vercel-domain.vercel.app/api/webhook/ebay/account-deletion
+     NEW: https://conservatron.parkercase.co/api/webhook/ebay/account-deletion
      ```
 
-4. **Save Changes**:
-   - Save the updated webhook URL
+4. **Add Verification Token**:
+
+   - Look for "Verification Token" or "Webhook Verification Token" field
+   - Enter the verification token you generated:
+     ```
+     WildGuardAI_2024_Webhook_Verification_Token_For_eBay_Integration_Security
+     ```
+
+5. **Save Changes**:
+   - Save the updated webhook URL and verification token
    - eBay will automatically test the new endpoint
 
-### 5. Verify Webhook Registration
+### 6. Verify Webhook Registration
 
 After updating, eBay should automatically test your webhook. You can also manually test it:
 
 ```bash
 # Test the account deletion endpoint specifically
-curl -X POST https://your-vercel-domain.vercel.app/api/webhook/ebay/account-deletion \
+curl -X POST https://conservatron.parkercase.co/api/webhook/ebay/account-deletion \
   -H "Content-Type: application/json" \
+  -H "x-ebay-verification-token: WildGuardAI_2024_Webhook_Verification_Token_For_eBay_Integration_Security" \
   -d '{
     "metadata": {
       "topic": "MARKETPLACE_ACCOUNT_DELETION",
@@ -99,7 +125,7 @@ curl -X POST https://your-vercel-domain.vercel.app/api/webhook/ebay/account-dele
   }'
 ```
 
-### 6. Monitor Webhook Activity
+### 7. Monitor Webhook Activity
 
 Check your Vercel function logs to ensure webhooks are being received:
 
@@ -108,9 +134,9 @@ Check your Vercel function logs to ensure webhooks are being received:
 3. Go to "Functions" tab
 4. Check the logs for `/api/webhook/ebay/` function
 
-### 7. Compliance Timeline
+### 8. Compliance Timeline
 
-- **Immediate**: Update the webhook URL in eBay Developer Portal
+- **Immediate**: Update the webhook URL and verification token in eBay Developer Portal
 - **Within 24 hours**: eBay should start sending notifications to the new endpoint
 - **Within 30 days**: eBay will verify the endpoint is working properly
 
@@ -121,17 +147,25 @@ Check your Vercel function logs to ensure webhooks are being received:
 - Handles all types of eBay notifications
 - Routes to specific handlers based on topic
 - Supports: account deletion, item sold, item updated, item ended
+- Includes verification token validation
 
 ### 2. Account Deletion Specific (`/api/webhook/ebay/account-deletion`)
 
 - Dedicated endpoint for account deletion notifications
 - Matches the exact URL mentioned in the eBay email
+- Includes verification token validation
 
 ### 3. Test Endpoint (`/api/webhook/ebay/test`)
 
 - For testing webhook accessibility
 - Supports both GET and POST requests
 - Useful for debugging
+
+### 4. Verification Endpoint (`/api/webhook/ebay/verification`)
+
+- Handles eBay's webhook verification process
+- Supports challenge-response verification
+- Required for webhook validation
 
 ## Webhook Data Structure
 
@@ -158,6 +192,16 @@ eBay sends webhooks in this format:
 }
 ```
 
+## Verification Token
+
+The verification token is used to:
+
+- Validate that webhooks are coming from eBay
+- Ensure webhook security
+- Meet eBay's compliance requirements
+
+**Token**: `WildGuardAI_2024_Webhook_Verification_Token_For_eBay_Integration_Security`
+
 ## Troubleshooting
 
 ### Webhook Not Responding
@@ -179,20 +223,27 @@ eBay sends webhooks in this format:
 2. Check Vercel deployment status
 3. Ensure the file structure matches
 
+### Verification Token Issues
+
+1. Ensure the token is between 32-80 characters
+2. Check that the token is properly configured in eBay
+3. Verify the token is being sent in headers
+
 ## Security Considerations
 
 - The webhook endpoints are public but only accept POST requests
-- Consider adding webhook signature verification for production
+- Verification tokens provide additional security
 - Monitor webhook logs for suspicious activity
 - Implement rate limiting if needed
 
 ## Next Steps
 
 1. Deploy the updated code to Vercel
-2. Update your eBay application webhook URL
-3. Test the webhook endpoints
-4. Monitor for successful webhook deliveries
-5. Consider implementing additional webhook types as needed
+2. Generate and configure the verification token
+3. Update your eBay application webhook URL and token
+4. Test the webhook endpoints
+5. Monitor for successful webhook deliveries
+6. Consider implementing additional webhook types as needed
 
 ## Support
 

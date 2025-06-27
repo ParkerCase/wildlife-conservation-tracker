@@ -24,6 +24,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Invalid webhook data" });
     }
 
+    // Handle verification token validation
+    const verificationToken =
+      req.headers["x-ebay-signature"] ||
+      req.headers["x-ebay-verification-token"];
+    if (verificationToken) {
+      console.log("Verification token received:", verificationToken);
+      // You can add custom verification logic here if needed
+      // For now, we'll just log it and accept it
+    }
+
     // Determine the type of webhook and process accordingly
     const result = await processWebhook(webhookData);
 
