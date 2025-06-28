@@ -337,7 +337,6 @@ class FixedHumanTraffickingOnlyScanner:
             "high_threat_items": 0,
             "critical_alerts": 0,
             "human_review_required": 0,
-            "false_positive_risk_low": 0,
             "intelligent_scoring_used": bool(self.threat_scorer)
         }
 
@@ -359,7 +358,6 @@ class FixedHumanTraffickingOnlyScanner:
                 threat_score = result.get('threat_score', 50)
                 threat_level = result.get('threat_level', 'HT_THREAT')
                 requires_review = result.get('requires_human_review', threat_score >= 70)
-                false_positive_risk = result.get('false_positive_risk', 0.15)
 
                 # Update quality metrics
                 if threat_score >= 70:
@@ -368,8 +366,6 @@ class FixedHumanTraffickingOnlyScanner:
                     quality_metrics["critical_alerts"] += 1
                 if requires_review:
                     quality_metrics["human_review_required"] += 1
-                if false_positive_risk < 0.2:
-                    quality_metrics["false_positive_risk_low"] += 1
 
                 detection = {
                     "evidence_id": evidence_id,
@@ -387,8 +383,7 @@ class FixedHumanTraffickingOnlyScanner:
                     "search_term": result.get("search_term", "") or "",
                     "description": (result.get("description", "") or "")[:1000],  # Add description
                     "confidence_score": result.get('confidence', 0.7),  # Map to confidence_score field
-                    "requires_human_review": requires_review,
-                    "false_positive_risk": false_positive_risk
+                    "requires_human_review": requires_review
                 }
 
                 # Remove any None values
@@ -439,10 +434,10 @@ class FixedHumanTraffickingOnlyScanner:
         
         # Quality factors for human trafficking scanning
         high_threat_ratio = metrics["high_threat_items"] / total_results
-        low_fp_ratio = metrics["false_positive_risk_low"] / total_results
-        intelligent_bonus = 0.2 if metrics["intelligent_scoring_used"] else 0.0
+        review_ratio = metrics["human_review_required"] / total_results
+        intelligent_bonus = 0.3 if metrics["intelligent_scoring_used"] else 0.0
         
-        quality_score = (high_threat_ratio * 0.4) + (low_fp_ratio * 0.4) + intelligent_bonus
+        quality_score = (high_threat_ratio * 0.5) + (review_ratio * 0.2) + intelligent_bonus
         return min(1.0, quality_score)
 
     async def run_fixed_ht_scan(self, keywords: List[str], platforms: List[str]) -> Dict:
