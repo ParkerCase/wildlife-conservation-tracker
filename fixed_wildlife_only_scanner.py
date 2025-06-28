@@ -383,6 +383,7 @@ class FixedWildlifeOnlyScanner:
                     "platform": result.get('platform', 'unknown'),
                     "threat_score": threat_score,
                     "threat_level": threat_level,
+                    "threat_category": "wildlife",  # EXPLICIT wildlife category
                     "species_involved": f"Fixed wildlife scan: {result.get('search_term', 'unknown')}",
                     "alert_sent": False,
                     "status": "FIXED_WILDLIFE_SCAN",
@@ -390,7 +391,8 @@ class FixedWildlifeOnlyScanner:
                     "listing_url": result.get("url", "") or "",
                     "listing_price": str(result.get("price", "") or ""),
                     "search_term": result.get("search_term", "") or "",
-                    "confidence": result.get('confidence', 0.6),
+                    "description": (result.get("description", "") or "")[:1000],  # Add description
+                    "confidence_score": result.get('confidence', 0.6),  # Map to confidence_score field
                     "requires_human_review": requires_review,
                     "false_positive_risk": false_positive_risk
                 }
