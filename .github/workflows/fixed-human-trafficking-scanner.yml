@@ -1,8 +1,8 @@
 name: FIXED Human Trafficking Scanner (Safe Keywords + Intelligent Scoring)
 on:
   schedule:
-    # Run every 6 hours, offset from wildlife scanner
-    - cron: "30 */6 * * *"
+    # High-frequency continuous scanning - every 20 minutes (offset from wildlife)
+    - cron: "10,30,50 * * * *"
   workflow_dispatch:
     inputs:
       platforms:

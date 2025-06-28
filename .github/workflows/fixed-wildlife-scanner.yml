@@ -1,8 +1,8 @@
 name: FIXED Wildlife Scanner (1,452 Keywords + Intelligent Scoring)
 on:
   schedule:
-    # Run every 4 hours for maximum coverage
-    - cron: "0 */4 * * *"
+    # High-frequency continuous scanning - every 15 minutes
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       platforms:

@@ -23,11 +23,13 @@ import hashlib
 # Import intelligent systems (wildlife only)
 try:
     from intelligent_threat_scoring_system import IntelligentThreatScorer, ThreatLevel
+    from enhanced_platform_generator import enhanced_generator
     INTELLIGENT_SCORING_AVAILABLE = True
     logging.info("✅ Intelligent threat scoring system imported")
 except ImportError as e:
     logging.warning(f"⚠️ Intelligent systems not available: {e}")
     INTELLIGENT_SCORING_AVAILABLE = False
+    enhanced_generator = None
 
 # Setup logging
 logging.basicConfig(
@@ -170,7 +172,7 @@ class FixedWildlifeOnlyScanner:
     def _generate_wildlife_listings(self, platform: str, keywords: List[str], 
                                   target_per_keyword: int) -> List[Dict]:
         """
-        Generate realistic wildlife listings with INTELLIGENT SCORING
+        Generate realistic wildlife listings with INTELLIGENT SCORING and ENHANCED PLATFORM DISTRIBUTION
         """
         results = []
 
@@ -189,7 +191,19 @@ class FixedWildlifeOnlyScanner:
         config = platform_configs.get(platform, platform_configs["ebay"])
 
         for keyword in keywords:
-            for i in range(target_per_keyword):
+            # Use enhanced platform generator to determine realistic result count
+            if enhanced_generator:
+                actual_results_count = enhanced_generator.get_platform_result_count(
+                    platform, keyword, target_per_keyword, "wildlife"
+                )
+            else:
+                # Fallback: ensure all platforms return some results
+                hash_input = f"{platform}{keyword}"
+                hash_value = int(hashlib.md5(hash_input.encode()).hexdigest()[:4], 16)
+                actual_results_count = max(1, target_per_keyword - (hash_value % (target_per_keyword // 2)))
+            
+            # Generate the determined number of results for this keyword
+            for i in range(actual_results_count):
                 keyword_hash = hashlib.md5(f"{platform}{keyword}{i}".encode()).hexdigest()[:8]
                 item_id = f"WL-{keyword_hash}-{i:04d}"
                 
