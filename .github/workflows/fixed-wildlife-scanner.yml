@@ -11,7 +11,7 @@ on:
         type: string
       keyword_batch_size:
         description: "Keywords per batch (from 1,452 total)"
-        default: "30"
+        default: "15"
         type: string
 
 jobs:
@@ -95,7 +95,7 @@ jobs:
           from datetime import datetime
 
           # Load keyword state for rotation through ALL 1,452 keywords
-          state_file = 'fixed_wildlife_keyword_state.json'
+          state_file = 'continuous_wildlife_keyword_state.json'
           default_state = {
               "last_index": 0,
               "total_keywords": 0,
@@ -132,7 +132,7 @@ jobs:
               exit(1)
 
           # Calculate batch for this run
-          batch_size = int(os.getenv('KEYWORD_BATCH_SIZE', '30'))
+          batch_size = int(os.getenv('KEYWORD_BATCH_SIZE', '15'))
           start_idx = state['last_index']
           end_idx = min(start_idx + batch_size, len(all_keywords))
 
@@ -166,7 +166,7 @@ jobs:
               f.write(f"total_available={len(all_keywords)}\n")
           EOF
         env:
-          KEYWORD_BATCH_SIZE: ${{ inputs.keyword_batch_size || '30' }}
+          KEYWORD_BATCH_SIZE: ${{ inputs.keyword_batch_size || '15' }}
 
       - name: FIXED Wildlife Scan (Intelligent Scoring)
         id: scan
@@ -303,5 +303,5 @@ jobs:
           name: fixed-wildlife-results-${{ github.run_number }}
           path: |
             fixed_wildlife_scan_results.json
-            fixed_wildlife_keyword_state.json
+            continuous_wildlife_keyword_state.json
           retention-days: 7

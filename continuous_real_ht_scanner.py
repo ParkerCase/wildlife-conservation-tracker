@@ -344,8 +344,8 @@ class ContinuousRealHTScanner:
         logging.info(f"✅ Stored {stored_count}/{len(results)} REAL HT results")
         return {"stored_count": stored_count, "quality_metrics": quality_metrics}
 
-    async def run_continuous_real_ht_scan(self, keyword_batch_size: int = 25) -> Dict:
-        """Run continuous REAL human trafficking scan with live platform data"""
+    async def run_continuous_real_ht_scan(self, keyword_batch_size: int = 5) -> Dict:
+        """Run continuous REAL human trafficking scan with live platform data and proper state management"""
         
         logging.info(f"🚀 Starting CONTINUOUS REAL HUMAN TRAFFICKING SCAN")
         logging.info(f"🌍 Platforms: REAL scraping from {len(self.ht_platforms)} high-risk platforms")
@@ -353,14 +353,41 @@ class ContinuousRealHTScanner:
         
         start_time = datetime.now()
         
-        # Rotate through keywords for continuous coverage
-        keyword_start_index = hash(datetime.now().strftime('%Y%m%d%H%M')) % len(self.ht_keywords)
-        keyword_batch = []
+        # PROPER STATE MANAGEMENT - Continue where last run left off
+        state_file = 'continuous_ht_keyword_state.json'
+        try:
+            with open(state_file, 'r') as f:
+                state = json.load(f)
+        except FileNotFoundError:
+            state = {
+                "last_index": 0,
+                "total_keywords": len(self.ht_keywords),
+                "completed_cycles": 0,
+                "last_run": None
+            }
         
-        for i in range(keyword_batch_size):
-            index = (keyword_start_index + i) % len(self.ht_keywords)
-            keyword_batch.append(self.ht_keywords[index])
+        # Get next batch of keywords starting from where we left off
+        start_index = state['last_index']
+        end_index = min(start_index + keyword_batch_size, len(self.ht_keywords))
         
+        # If we've reached the end, start over and increment cycle count
+        if start_index >= len(self.ht_keywords):
+            start_index = 0
+            end_index = min(keyword_batch_size, len(self.ht_keywords))
+            state['completed_cycles'] += 1
+            logging.info(f"🔄 Completed full cycle {state['completed_cycles']}, starting over")
+        
+        keyword_batch = self.ht_keywords[start_index:end_index]
+        
+        # Update state for next run
+        state['last_index'] = end_index
+        state['last_run'] = datetime.now().isoformat()
+        
+        # Save state
+        with open(state_file, 'w') as f:
+            json.dump(state, f, indent=2)
+        
+        logging.info(f"📊 Keywords {start_index}-{end_index}/{len(self.ht_keywords)} (cycle {state['completed_cycles']})")
         logging.info(f"📝 Current batch: {', '.join(keyword_batch[:3])}...")
         
         # Scan REAL high-risk platforms
@@ -385,11 +412,14 @@ class ContinuousRealHTScanner:
             'human_review_required': quality_metrics.get("human_review_required", 0),
             'platforms_scanned': self.ht_platforms,
             'keywords_used': len(keyword_batch),
+            'keywords_progress': f"{end_index}/{len(self.ht_keywords)}",
+            'completed_cycles': state['completed_cycles'],
             'errors': [],
             'scan_status': 'completed',
             'timestamp': datetime.now().isoformat(),
             'real_data_used': True,
             'continuous_scanning': True,
+            'state_managed': True,
             'false_positives_filtered': True,
             'listings_per_minute': int(len(all_results) * 60 / duration) if duration > 0 else 0,
             'duration_seconds': duration,
@@ -400,6 +430,7 @@ class ContinuousRealHTScanner:
         logging.info(f"📊 Total scanned: {len(all_results):,} REAL listings")
         logging.info(f"💾 Total stored: {stored_count:,}")
         logging.info(f"⚡ Rate: {results['listings_per_minute']:,} real listings/minute")
+        logging.info(f"🎯 Progress: {end_index}/{len(self.ht_keywords)} keywords (cycle {state['completed_cycles']})")
         logging.info(f"🎯 HT alerts: {quality_metrics.get('high_threat_items', 0)}")
         logging.info(f"🚨 Critical alerts: {quality_metrics.get('critical_alerts', 0)}")
         
@@ -409,7 +440,7 @@ class ContinuousRealHTScanner:
 async def run_continuous_real_ht_scan():
     """Run continuous REAL human trafficking scan with live platform data"""
     scanner = ContinuousRealHTScanner()
-    return await scanner.run_continuous_real_ht_scan(25)
+    return await scanner.run_continuous_real_ht_scan(5)
 
 
 if __name__ == "__main__":

@@ -319,8 +319,8 @@ class ContinuousRealWildlifeScanner:
         logging.info(f"✅ Stored {stored_count}/{len(results)} REAL wildlife results")
         return {"stored_count": stored_count, "quality_metrics": quality_metrics}
 
-    async def run_continuous_real_wildlife_scan(self, keyword_batch_size: int = 30) -> Dict:
-        """Run continuous REAL wildlife scan with live platform data"""
+    async def run_continuous_real_wildlife_scan(self, keyword_batch_size: int = 15) -> Dict:
+        """Run continuous REAL wildlife scan with live platform data and proper state management"""
         
         logging.info(f"🚀 Starting CONTINUOUS REAL WILDLIFE SCAN")
         logging.info(f"🌍 Platforms: REAL scraping from {len(self.real_platforms)} live marketplaces")
@@ -328,14 +328,41 @@ class ContinuousRealWildlifeScanner:
         
         start_time = datetime.now()
         
-        # Rotate through keywords for continuous coverage
-        keyword_start_index = hash(datetime.now().strftime('%Y%m%d%H%M')) % len(self.wildlife_keywords)
-        keyword_batch = []
+        # PROPER STATE MANAGEMENT - Continue where last run left off
+        state_file = 'continuous_wildlife_keyword_state.json'
+        try:
+            with open(state_file, 'r') as f:
+                state = json.load(f)
+        except FileNotFoundError:
+            state = {
+                "last_index": 0,
+                "total_keywords": len(self.wildlife_keywords),
+                "completed_cycles": 0,
+                "last_run": None
+            }
         
-        for i in range(keyword_batch_size):
-            index = (keyword_start_index + i) % len(self.wildlife_keywords)
-            keyword_batch.append(self.wildlife_keywords[index])
+        # Get next batch of keywords starting from where we left off
+        start_index = state['last_index']
+        end_index = min(start_index + keyword_batch_size, len(self.wildlife_keywords))
         
+        # If we've reached the end, start over and increment cycle count
+        if start_index >= len(self.wildlife_keywords):
+            start_index = 0
+            end_index = min(keyword_batch_size, len(self.wildlife_keywords))
+            state['completed_cycles'] += 1
+            logging.info(f"🔄 Completed full cycle {state['completed_cycles']}, starting over")
+        
+        keyword_batch = self.wildlife_keywords[start_index:end_index]
+        
+        # Update state for next run
+        state['last_index'] = end_index
+        state['last_run'] = datetime.now().isoformat()
+        
+        # Save state
+        with open(state_file, 'w') as f:
+            json.dump(state, f, indent=2)
+        
+        logging.info(f"📊 Keywords {start_index}-{end_index}/{len(self.wildlife_keywords)} (cycle {state['completed_cycles']})")
         logging.info(f"📝 Current batch: {', '.join(keyword_batch[:5])}...")
         
         # Scan REAL platforms
@@ -357,12 +384,15 @@ class ContinuousRealWildlifeScanner:
             'total_stored': stored_count,
             'platforms_scanned': self.real_platforms,
             'keywords_used': len(keyword_batch),
+            'keywords_progress': f"{end_index}/{len(self.wildlife_keywords)}",
+            'completed_cycles': state['completed_cycles'],
             'duration_seconds': duration,
             'listings_per_minute': int(len(all_results) * 60 / duration) if duration > 0 else 0,
             'timestamp': datetime.now().isoformat(),
             'quality_metrics': quality_metrics,
             'real_data_used': True,
             'continuous_scanning': True,
+            'state_managed': True,
             'high_threat_items': quality_metrics.get("high_threat_items", 0),
             'critical_alerts': quality_metrics.get("critical_alerts", 0),
             'human_review_required': quality_metrics.get("human_review_required", 0)
@@ -372,6 +402,7 @@ class ContinuousRealWildlifeScanner:
         logging.info(f"📊 Total scanned: {len(all_results):,} REAL listings")
         logging.info(f"💾 Total stored: {stored_count:,}")
         logging.info(f"⚡ Rate: {results['listings_per_minute']:,} real listings/minute")
+        logging.info(f"🎯 Progress: {end_index}/{len(self.wildlife_keywords)} keywords (cycle {state['completed_cycles']})")
         logging.info(f"🎯 High threat items: {quality_metrics.get('high_threat_items', 0)}")
         logging.info(f"🚨 Critical alerts: {quality_metrics.get('critical_alerts', 0)}")
         

@@ -11,7 +11,7 @@ on:
         type: string
       keyword_batch_size:
         description: "Keywords per batch (from safe set)"
-        default: "25"
+        default: "5"
         type: string
 
 jobs:
@@ -93,7 +93,7 @@ jobs:
           from datetime import datetime
 
           # Load keyword state for safe HT keywords
-          state_file = 'fixed_ht_keyword_state.json'
+          state_file = 'continuous_ht_keyword_state.json'
           default_state = {
               "last_index": 0,
               "total_keywords": 0,
@@ -134,7 +134,7 @@ jobs:
               state['total_keywords'] = len(all_keywords)
 
           # Calculate batch for this run
-          batch_size = int(os.getenv('KEYWORD_BATCH_SIZE', '25'))
+          batch_size = int(os.getenv('KEYWORD_BATCH_SIZE', '5'))
           start_idx = state['last_index']
           end_idx = min(start_idx + batch_size, len(all_keywords))
 
@@ -168,7 +168,7 @@ jobs:
               f.write(f"total_available={len(all_keywords)}\n")
           EOF
         env:
-          KEYWORD_BATCH_SIZE: ${{ inputs.keyword_batch_size || '25' }}
+          KEYWORD_BATCH_SIZE: ${{ inputs.keyword_batch_size || '5' }}
 
       - name: FIXED Human Trafficking Scan (No False Positives)
         id: scan
@@ -387,5 +387,5 @@ jobs:
           name: fixed-human-trafficking-results-${{ github.run_number }}
           path: |
             fixed_human_trafficking_results.json
-            fixed_ht_keyword_state.json
+            continuous_ht_keyword_state.json
           retention-days: 30
