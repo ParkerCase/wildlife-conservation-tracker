@@ -1,4 +1,4 @@
-name: FIXED Wildlife Scanner (1,452 Keywords + Intelligent Scoring)
+name: CONTINUOUS REAL Wildlife Scanner (Live Platforms Every 15 Min)
 on:
   schedule:
     # High-frequency continuous scanning - every 15 minutes
@@ -184,8 +184,8 @@ jobs:
 
           async def run_fixed_wildlife_scan():
               try:
-                  # Import the FIXED WILDLIFE-ONLY scanner with intelligent scoring
-                  from fixed_wildlife_only_scanner import FixedWildlifeOnlyScanner
+                  # Import the CONTINUOUS REAL WILDLIFE scanner with live platform data
+                  from continuous_real_wildlife_scanner import ContinuousRealWildlifeScanner
                   
                   # Get keywords from previous step
                   keywords_str = os.getenv('SCAN_KEYWORDS', '')
@@ -194,38 +194,40 @@ jobs:
                       return False
                   
                   keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
-                  logging.info(f"🔧 FIXED Wildlife scan with {len(keywords)} keywords from 1,452 total")
+                  logging.info(f"🔧 CONTINUOUS REAL Wildlife scan with {len(keywords)} keywords from 1,452 total")
                   
-                  # ALL 9 PLATFORMS for maximum coverage
-                  platforms_str = os.getenv('SCAN_PLATFORMS', 'ebay,craigslist,marktplaats,olx,taobao,aliexpress,mercadolibre,gumtree,avito')
+                  # ALL REAL PLATFORMS for live data
+                  platforms_str = os.getenv('SCAN_PLATFORMS', 'ebay,craigslist,aliexpress,olx,gumtree,mercadolibre,taobao,mercari')
                   platforms = [p.strip() for p in platforms_str.split(',') if p.strip()]
-                  logging.info(f"🌍 Target platforms: {', '.join(platforms)}")
+                  logging.info(f"🌍 Target platforms: REAL scraping from {', '.join(platforms)}")
                   
-                  async with FixedWildlifeOnlyScanner() as scanner:
-                      # Verify intelligent scoring is enabled
-                      if scanner.threat_scorer:
-                          logging.info("✅ Intelligent threat scoring: ENABLED")
-                      else:
-                          logging.warning("⚠️ Intelligent threat scoring: FALLBACK MODE")
+                  # Create and run the CONTINUOUS REAL scanner
+                  scanner = ContinuousRealWildlifeScanner()
+                  
+                  # Verify REAL scanning is available
+                  if not scanner.real_scanner:
+                      logging.error("❌ Real platform scanning not available")
+                      return False
+                  
+                  logging.info("✅ REAL platform scanning: ENABLED")
+                  logging.info(f"📊 Wildlife keywords loaded: {len(scanner.wildlife_keywords):,}")
+                  
+                  if len(scanner.wildlife_keywords) >= 1400:
+                      logging.info("✅ Full multilingual keyword set confirmed")
+                  else:
+                      logging.warning(f"⚠️ Limited keyword set: {len(scanner.wildlife_keywords)}")
+                  
+                  # Run CONTINUOUS REAL wildlife scan with live data
+                  results = await scanner.run_continuous_real_wildlife_scan(len(keywords))
                       
-                      # Verify keyword loading
-                      logging.info(f"📊 Wildlife keywords loaded: {len(scanner.wildlife_keywords):,}")
-                      if len(scanner.wildlife_keywords) >= 1400:
-                          logging.info("✅ Full multilingual keyword set confirmed")
-                      else:
-                          logging.warning(f"⚠️ Limited keyword set: {len(scanner.wildlife_keywords)}")
+                  logging.info(f"✅ CONTINUOUS REAL Wildlife scan completed successfully")
+                  logging.info(f"📊 Results: {results}")
                       
-                      # Run FIXED wildlife-only scan
-                      results = await scanner.run_fixed_wildlife_scan(keywords, platforms)
-                      
-                      logging.info(f"✅ FIXED Wildlife scan completed successfully")
-                      logging.info(f"📊 Results: {results}")
-                      
-                      # Save detailed results
-                      with open('fixed_wildlife_scan_results.json', 'w') as f:
-                          json.dump(results, f, indent=2)
-                      
-                      return True
+                  # Save detailed results
+                  with open('fixed_wildlife_scan_results.json', 'w') as f:
+                      json.dump(results, f, indent=2)
+                  
+                  return True
                   
               except ImportError as e:
                   logging.error(f"FIXED scanner import error: {e}")

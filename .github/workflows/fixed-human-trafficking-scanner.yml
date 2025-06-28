@@ -1,4 +1,4 @@
-name: FIXED Human Trafficking Scanner (Safe Keywords + Intelligent Scoring)
+name: CONTINUOUS REAL Human Trafficking Scanner (Live Platforms Every 20 Min)
 on:
   schedule:
     # High-frequency continuous scanning - every 20 minutes (offset from wildlife)
@@ -204,8 +204,8 @@ jobs:
 
           async def run_fixed_human_trafficking_scan():
               try:
-                  # Import the FIXED HUMAN TRAFFICKING-ONLY scanner
-                  from fixed_ht_only_scanner import FixedHumanTraffickingOnlyScanner
+                  # Import the CONTINUOUS REAL HUMAN TRAFFICKING scanner with live platform data
+                  from continuous_real_ht_scanner import ContinuousRealHTScanner
                   
                   # Get keywords from previous step
                   keywords_str = os.getenv('SCAN_KEYWORDS', '')
@@ -215,49 +215,53 @@ jobs:
                       return False
                   
                   keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
-                  logging.info(f"🔧 FIXED Human trafficking scan with {len(keywords)} safe keywords")
+                  logging.info(f"🔧 CONTINUOUS REAL Human trafficking scan with {len(keywords)} safe keywords")
                   
-                  # High-risk platforms for human trafficking
-                  platforms_str = os.getenv('SCAN_PLATFORMS', 'craigslist,gumtree,olx,avito,marktplaats')
+                  # High-risk platforms for REAL human trafficking scanning
+                  platforms_str = os.getenv('SCAN_PLATFORMS', 'craigslist,gumtree,olx,mercadolibre')
                   platforms = [p.strip() for p in platforms_str.split(',') if p.strip()]
-                  logging.info(f"🌍 Target platforms: {', '.join(platforms)}")
+                  logging.info(f"🌍 Target platforms: REAL scraping from {', '.join(platforms)}")
                   results['platforms_scanned'] = platforms
                   results['keywords_used'] = len(keywords)
                   
-                  async with FixedHumanTraffickingOnlyScanner() as scanner:
-                      # Verify intelligent scoring and safe keywords
-                      if scanner.threat_scorer:
-                          logging.info("✅ Intelligent threat scoring: ENABLED")
-                          results['intelligent_scoring_enabled'] = True
-                      else:
-                          logging.warning("⚠️ Intelligent threat scoring: FALLBACK MODE")
+                  # Create and run the CONTINUOUS REAL HT scanner
+                  scanner = ContinuousRealHTScanner()
+                  
+                  # Verify REAL scanning is available
+                  if not scanner.real_scanner:
+                      logging.error("❌ Real platform scanning not available")
+                      return False
+                  
+                  logging.info("✅ REAL platform scanning: ENABLED")
+                  results['intelligent_scoring_enabled'] = bool(scanner.threat_scorer)
+                  
+                  # Verify safe keyword loading
+                  logging.info(f"📊 Safe HT keywords loaded: {len(scanner.ht_keywords):,}")
+                  if len(scanner.ht_keywords) >= 100:
+                      logging.info("✅ Comprehensive safe keyword set confirmed")
+                  else:
+                      logging.warning(f"⚠️ Limited safe keyword set: {len(scanner.ht_keywords)}")
+                  
+                  # Run CONTINUOUS REAL human trafficking scan with live data
+                  scan_results = await scanner.run_continuous_real_ht_scan(len(keywords))
                       
-                      # Verify safe keyword loading
-                      logging.info(f"📊 Safe HT keywords loaded: {len(scanner.human_trafficking_keywords):,}")
-                      if len(scanner.human_trafficking_keywords) >= 100:
-                          logging.info("✅ Comprehensive safe keyword set confirmed")
-                      else:
-                          logging.warning(f"⚠️ Limited safe keyword set: {len(scanner.human_trafficking_keywords)}")
-                      
-                      # Run FIXED human trafficking-only scan
-                      scan_results = await scanner.run_fixed_ht_scan(keywords, platforms)
-                      
-                      # Update results with FIXED scan data
-                      results.update({
-                          'total_scanned': scan_results.get('total_scanned', 0),
-                          'total_stored': scan_results.get('total_stored', 0),
-                          'human_trafficking_alerts': scan_results.get('high_threat_items', 0),
-                          'critical_alerts': scan_results.get('critical_alerts', 0),
-                          'human_review_required': scan_results.get('human_review_required', 0),
-                          'scan_status': 'completed',
-                          'listings_per_minute': scan_results.get('listings_per_minute', 0),
-                          'duration_seconds': scan_results.get('duration_seconds', 0),
-                          'quality_metrics': scan_results.get('quality_metrics', {})
-                      })
-                      
-                      logging.info(f"✅ FIXED Human trafficking scan completed")
-                      logging.info(f"📊 Results: {results}")
-                      return True
+                  # Update results with REAL scan data
+                  results.update({
+                      'total_scanned': scan_results.get('total_scanned', 0),
+                      'total_stored': scan_results.get('total_stored', 0),
+                      'human_trafficking_alerts': scan_results.get('human_trafficking_alerts', 0),
+                      'critical_alerts': scan_results.get('critical_alerts', 0),
+                      'human_review_required': scan_results.get('human_review_required', 0),
+                      'scan_status': 'completed',
+                      'listings_per_minute': scan_results.get('listings_per_minute', 0),
+                      'duration_seconds': scan_results.get('duration_seconds', 0),
+                      'quality_metrics': scan_results.get('quality_metrics', {}),
+                      'real_data_used': scan_results.get('real_data_used', True)
+                  })
+                  
+                  logging.info(f"✅ CONTINUOUS REAL Human trafficking scan completed")
+                  logging.info(f"📊 Results: {results}")
+                  return True
                   
               except ImportError as e:
                   logging.error(f"FIXED scanner import error: {e}")
