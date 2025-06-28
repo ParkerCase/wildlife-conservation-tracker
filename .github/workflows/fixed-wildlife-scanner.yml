@@ -184,8 +184,8 @@ jobs:
 
           async def run_fixed_wildlife_scan():
               try:
-                  # Import the FIXED scanner with intelligent scoring
-                  from fixed_high_volume_scanner import FixedHighVolumeScanner
+                  # Import the FIXED WILDLIFE-ONLY scanner with intelligent scoring
+                  from fixed_wildlife_only_scanner import FixedWildlifeOnlyScanner
                   
                   # Get keywords from previous step
                   keywords_str = os.getenv('SCAN_KEYWORDS', '')
@@ -201,7 +201,7 @@ jobs:
                   platforms = [p.strip() for p in platforms_str.split(',') if p.strip()]
                   logging.info(f"🌍 Target platforms: {', '.join(platforms)}")
                   
-                  async with FixedHighVolumeScanner() as scanner:
+                  async with FixedWildlifeOnlyScanner() as scanner:
                       # Verify intelligent scoring is enabled
                       if scanner.threat_scorer:
                           logging.info("✅ Intelligent threat scoring: ENABLED")
@@ -215,8 +215,8 @@ jobs:
                       else:
                           logging.warning(f"⚠️ Limited keyword set: {len(scanner.wildlife_keywords)}")
                       
-                      # Run FIXED high-volume scan
-                      results = await scanner.run_fixed_high_volume_scan("wildlife", keywords, platforms)
+                      # Run FIXED wildlife-only scan
+                      results = await scanner.run_fixed_wildlife_scan(keywords, platforms)
                       
                       logging.info(f"✅ FIXED Wildlife scan completed successfully")
                       logging.info(f"📊 Results: {results}")

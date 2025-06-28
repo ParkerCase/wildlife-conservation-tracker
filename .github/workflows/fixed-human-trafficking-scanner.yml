@@ -204,8 +204,8 @@ jobs:
 
           async def run_fixed_human_trafficking_scan():
               try:
-                  # Import the FIXED scanner
-                  from fixed_high_volume_scanner import FixedHighVolumeScanner
+                  # Import the FIXED HUMAN TRAFFICKING-ONLY scanner
+                  from fixed_ht_only_scanner import FixedHumanTraffickingOnlyScanner
                   
                   # Get keywords from previous step
                   keywords_str = os.getenv('SCAN_KEYWORDS', '')
@@ -224,7 +224,7 @@ jobs:
                   results['platforms_scanned'] = platforms
                   results['keywords_used'] = len(keywords)
                   
-                  async with FixedHighVolumeScanner() as scanner:
+                  async with FixedHumanTraffickingOnlyScanner() as scanner:
                       # Verify intelligent scoring and safe keywords
                       if scanner.threat_scorer:
                           logging.info("✅ Intelligent threat scoring: ENABLED")
@@ -239,8 +239,8 @@ jobs:
                       else:
                           logging.warning(f"⚠️ Limited safe keyword set: {len(scanner.human_trafficking_keywords)}")
                       
-                      # Run FIXED high-volume scan for human trafficking
-                      scan_results = await scanner.run_fixed_high_volume_scan("human_trafficking", keywords, platforms)
+                      # Run FIXED human trafficking-only scan
+                      scan_results = await scanner.run_fixed_ht_scan(keywords, platforms)
                       
                       # Update results with FIXED scan data
                       results.update({
