@@ -501,7 +501,7 @@ class SuperStealthAliExpressScanner:
                                     }
                                 ''')
                                 
-                                if products && len(products) > 0:
+                                if products and len(products) > 0:
                                     for product in products:
                                         product['search_term'] = term
                                         product['platform'] = 'aliexpress'
@@ -680,7 +680,7 @@ class OptimizedMercadoLibreScanner:
                                                 }}
                                             ''')
                                             
-                                            if products && len(products) > 0:
+                                            if products and len(products) > 0:
                                                 break
                                                 
                                         except Exception as e:
@@ -1197,7 +1197,7 @@ class EnhancedTaobaoScanner:
                                     }
                                 ''')
                                 
-                                if products && len(products) > 0:
+                                if products and len(products) > 0:
                                     for product in products:
                                         product['search_term'] = term
                                         product['attempt'] = attempt + 1
