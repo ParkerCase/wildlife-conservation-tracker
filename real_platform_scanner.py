@@ -302,6 +302,9 @@ class RealCraigslistScanner:
 class RealAliExpressScanner:
     """REAL AliExpress scanner - NO MORE FAKE DATA"""
     
+    def __init__(self):
+        self.ua = UserAgent()
+    
     async def scan(self, keywords: Dict, session: aiohttp.ClientSession) -> List[Dict]:
         results = []
         search_terms = keywords["direct_terms"][:4]  # Use 4 keywords

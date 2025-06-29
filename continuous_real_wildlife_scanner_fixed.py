@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 FIXED Continuous Real Wildlife Scanner - Live Platform Data Only
-✅ All connection and timeout issues from logs RESOLVED
+✅ Addresses all connection and timeout issues from logs
 ✅ Uses FIXED enhanced platform scanner
-✅ Better error handling and success rates
+✅ Better error handling and retry logic
 """
 
 import asyncio
@@ -17,7 +17,7 @@ import hashlib
 
 # Import FIXED platform scanning
 try:
-    from enhanced_platform_scanner import EnhancedRealPlatformScanner
+    from enhanced_platform_scanner_fixed import EnhancedRealPlatformScanner
     from intelligent_threat_scoring_system import IntelligentThreatScorer, ThreatLevel
     ENHANCED_SCANNING_AVAILABLE = True
     logging.info("✅ FIXED ENHANCED platform scanning system imported")
@@ -40,12 +40,12 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 
-class ContinuousRealWildlifeScanner:
+class FixedContinuousRealWildlifeScanner:
     """
     FIXED Continuous Real Wildlife Scanner - All Issues Resolved
-    - Uses FIXED enhanced platform scanner (no more ua attribute errors)
-    - Better timeout and error handling
-    - Focus on working platforms for higher success rates
+    - Addresses all timeout and connection issues from logs
+    - Uses FIXED enhanced platform scanner
+    - Better error handling and success rates
     """
 
     def __init__(self):
@@ -71,7 +71,7 @@ class ContinuousRealWildlifeScanner:
         ]
         
         # Load wildlife keywords
-        self.wildlife_keywords = self._load_all_1452_wildlife_keywords()
+        self.wildlife_keywords = self._load_wildlife_keywords()
         
         # Deduplication tracking
         self.seen_urls: Set[str] = set()
@@ -89,13 +89,13 @@ class ContinuousRealWildlifeScanner:
             sys.exit(1)
 
         logging.info(f"✅ FIXED CONTINUOUS REAL WILDLIFE SCANNER ready")
-        logging.info(f"🎯 Wildlife keywords: {len(self.wildlife_keywords):,} (ALL 1,452 multilingual)")
+        logging.info(f"🎯 Wildlife keywords: {len(self.wildlife_keywords):,}")
         logging.info(f"🌍 Real platforms: {len(self.real_platforms)} (focus on working platforms)")
         logging.info(f"🧠 Intelligent scoring: {'ENABLED' if self.threat_scorer else 'FALLBACK'}")
         logging.info(f"🔧 FIXED scanner: {'ENABLED' if self.enhanced_features else 'Standard mode'}")
 
-    def _load_all_1452_wildlife_keywords(self) -> List[str]:
-        """Load ALL 1,452 multilingual wildlife keywords"""
+    def _load_wildlife_keywords(self) -> List[str]:
+        """Load wildlife keywords with fallback"""
         try:
             with open('multilingual_wildlife_keywords.json', 'r') as f:
                 keywords_data = json.load(f)
@@ -416,13 +416,13 @@ class ContinuousRealWildlifeScanner:
 
 async def run_continuous_real_wildlife_scan():
     """Run FIXED continuous wildlife scan"""
-    scanner = ContinuousRealWildlifeScanner()
+    scanner = FixedContinuousRealWildlifeScanner()
     return await scanner.run_continuous_real_wildlife_scan(15)
 
 
 if __name__ == "__main__":
     print("🔧 FIXED CONTINUOUS REAL WILDLIFE SCANNER")
-    print("✅ FIXED: All ua attribute errors resolved")
+    print("✅ FIXED: Enhanced platform scanner with proper ua attributes")
     print("✅ FIXED: Better error handling for connection issues")
     print("✅ FIXED: Focus on working platforms for better success rates")
     print("✅ FIXED: Improved timeout management")
